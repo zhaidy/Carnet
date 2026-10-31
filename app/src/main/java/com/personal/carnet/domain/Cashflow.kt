@@ -3,6 +3,7 @@ package com.personal.carnet.domain
 import com.personal.carnet.data.Account
 import com.personal.carnet.data.AccountType
 import com.personal.carnet.data.Entry
+import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
 import com.personal.carnet.data.RecurringRule
 import com.personal.carnet.data.RuleKind
@@ -76,6 +77,29 @@ object Cashflow {
             if (e.timeMillis < cut) atCut += d else if (d > 0) paidAfter += d
         }
         return (-atCut - paidAfter).coerceIn(0, owedNow)
+    }
+
+    /** 最近一次已经出了的账单日（今天之前）；没设账单日是 null */
+    fun lastStatement(statementDay: Int?, today: LocalDate): LocalDate? {
+        val day = statementDay ?: return null
+        var month = YearMonth.from(today)
+        repeat(2) {
+            val date = month.atDay(day.coerceIn(1, month.lengthOfMonth()))
+            if (date.isBefore(today)) return date
+            month = month.minusMonths(1)
+        }
+        return null
+    }
+
+    /**
+     * 信用卡按账算现在欠多少：[clearedThrough] 那天（含）之前刷的都还清了，现在欠的 = 之后刷的减掉退款。
+     * 之后的还款不算：那多半是还上一期的（比如 10/19 出账、10/26 还清），再扣就扣两次了
+     */
+    fun owedSince(cardId: Long, entries: List<Entry>, clearedThrough: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long {
+        val cut = clearedThrough.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return -entries
+            .filter { it.timeMillis >= cut && !(it.kind == EntryKind.TRANSFER && it.toAccountId == cardId) }
+            .sumOf { Books.delta(it, cardId) }
     }
 
     /** 账单已经出了的那一期，金额是准的 */

@@ -126,4 +126,23 @@ class CashflowTest {
         // 账单还没出（今天就是账单日）：先按全部估
         assertEquals(55000L, Cashflow.cardDue(payA, due, card, balances, entries, LocalDate.of(2026, 10, 20), zone))
     }
+
+    @Test
+    fun 按账算现在欠() {
+        // 10/19 出账、10/26 还清；现在欠的就是 10/19 之后刷的
+        val entries = listOf(
+            spend(1, "2026-10-10", 50000),
+            spend(2, "2026-10-21", 12000),
+            spend(3, "2026-10-30", 8107),
+            repay(4, "2026-10-26", 50000),
+        )
+        assertEquals(LocalDate.of(2026, 10, 19), Cashflow.lastStatement(19, today))
+        assertEquals(LocalDate.of(2026, 9, 30), Cashflow.lastStatement(31, LocalDate.of(2026, 10, 15)))
+        assertNull(Cashflow.lastStatement(null, today))
+        // 10/26 那笔还款还的是上一期，不算：现在欠 = 10/19 之后刷的
+        assertEquals(20107L, Cashflow.owedSince(2, entries, LocalDate.of(2026, 10, 19), zone))
+        // 退款（进卡里的收入）要减掉
+        val refund = spend(5, "2026-10-31", 1000).copy(kind = EntryKind.INCOME)
+        assertEquals(19107L, Cashflow.owedSince(2, entries + refund, LocalDate.of(2026, 10, 19), zone))
+    }
 }
