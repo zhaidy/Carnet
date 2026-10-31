@@ -52,9 +52,21 @@ import com.personal.carnet.sync.SyncStatus
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
-fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit, onEdit: (LedgerView) -> Unit = {}) {
+fun LedgersScreen(
+    snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit,
+    onEdit: (LedgerView) -> Unit = {}, onOpenBills: (LedgerView) -> Unit = {},
+) {
     var confirming by rememberSaveable { mutableStateOf<Long?>(null) }
     var joining by rememberSaveable { mutableStateOf(false) }
     var code by rememberSaveable { mutableStateOf("") }
@@ -119,6 +131,15 @@ fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit
                 },
                 onLeave = { vm.leaveSync(view.ledger) },
                 onEdit = { onEdit(view) },
+                onOpenBills = { onOpenBills(view) },
+                onMoveSettlement = { date ->
+                    view.lastSettlement?.let { vm.moveSettlement(it.id, date) }
+                    toast.show("改好了：两清算到 ${date.monthValue}/${date.dayOfMonth}，之后的账重新算")
+                },
+                onUndoSettlement = {
+                    view.lastSettlement?.let { vm.undoSettlement(it.id) }
+                    toast.show("撤销了这次两清")
+                },
                 confirming = confirming == view.ledger.id,
                 onAskSettle = { confirming = view.ledger.id },
                 onCancel = { confirming = null },
@@ -132,6 +153,7 @@ fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LedgerCard(
     view: LedgerView,
@@ -140,12 +162,33 @@ private fun LedgerCard(
     onInvite: () -> Unit,
     onLeave: () -> Unit,
     onEdit: () -> Unit,
+    onOpenBills: () -> Unit,
+    onMoveSettlement: (LocalDate) -> Unit,
+    onUndoSettlement: () -> Unit,
     confirming: Boolean,
     onAskSettle: () -> Unit,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     val l = view.ledger
+    var settleOpen by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    val last = view.lastSettlement
+    val lastDate = last?.let { Instant.ofEpochMilli(it.timeMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
+    if (picking && lastDate != null) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = lastDate.toEpochDay() * 86_400_000L)
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { onMoveSettlement(LocalDate.ofEpochDay(it / 86_400_000L)) }
+                    picking = false
+                    settleOpen = false
+                }) { Text("好") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("取消") } },
+        ) { DatePicker(state) }
+    }
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.jelly(onClick = onEdit), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (l.shared) {
@@ -179,11 +222,46 @@ private fun LedgerCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Strong(Split.describe(view.balanceCents, view.currency), size = 14.sp, color = if (view.balanceCents > 0) Palette.Rose else Palette.Ink)
-                    view.lastSettlement?.let { Label("上次两清 " + shortDate(it.timeMillis), size = 11.sp) }
+                    if (lastDate != null) {
+                        Row(
+                            Modifier.jelly { settleOpen = !settleOpen }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Label("上次两清 " + dateLabel(lastDate), size = 11.sp)
+                            Label("改", size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                        }
+                    }
                 }
                 if (view.periodCents > 0 && !confirming) {
                     Box(Modifier.glassControl().jelly(onClick = onAskSettle).padding(horizontal = 14.dp, vertical = 9.dp)) {
                         Strong("结算", size = 13.sp, color = Palette.Violet)
+                    }
+                }
+            }
+            if (settleOpen && lastDate != null) {
+                val monthEnd = LocalDate.now().withDayOfMonth(1).minusDays(1)
+                Column(
+                    Modifier.fillMaxWidth().glassControl(RoundedCornerShape(18.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Strong("上次两清算到 ${dateLabel(lastDate)}", size = 14.sp)
+                    Label("这天之前（含这天）的账算两清了；改早一点，后面的账就重新算进这次要结的。", size = 12.sp, weight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (lastDate != monthEnd) {
+                            SmallButton("改到上月底 ${monthEnd.monthValue}/${monthEnd.dayOfMonth}", Palette.Violet, Modifier.weight(1f)) {
+                                onMoveSettlement(monthEnd)
+                                settleOpen = false
+                            }
+                        }
+                        SmallButton("选日期", Palette.Ink, Modifier.weight(1f)) { picking = true }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallButton("撤销这次两清", Palette.Rose, Modifier.weight(1f)) {
+                            onUndoSettlement()
+                            settleOpen = false
+                        }
+                        SmallButton("算了", Palette.Ink, Modifier.weight(1f)) { settleOpen = false }
                     }
                 }
             }
@@ -220,5 +298,23 @@ private fun LedgerCard(
                 }
             }
         }
+        Row(
+            Modifier.fillMaxWidth().glassControl(RoundedCornerShape(16.dp)).jelly(onClick = onOpenBills).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Strong("看这个账本的账单", size = 13.sp, color = Palette.Violet, modifier = Modifier.weight(1f))
+            com.personal.carnet.ui.LineIcon(IconPaths.CHEVRON_RIGHT, Palette.Violet, size = 16.dp, width = 2.2f)
+        }
     }
+}
+
+private fun dateLabel(date: LocalDate): String =
+    if (date.year == LocalDate.now().year) "${date.monthValue}/${date.dayOfMonth}" else "${date.year}/${date.monthValue}/${date.dayOfMonth}"
+
+@Composable
+private fun SmallButton(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.glassControl(RoundedCornerShape(14.dp)).jelly(onClick = onClick).padding(vertical = 10.dp, horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) { Strong(text, size = 13.sp, color = color) }
 }

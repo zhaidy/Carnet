@@ -217,6 +217,10 @@ class MainViewModel(
 
     fun addLedger(ledger: Ledger) = viewModelScope.launch { repo.addLedger(ledger) }
 
+    fun moveSettlement(id: Long, date: java.time.LocalDate) = viewModelScope.launch { repo.moveSettlement(id, date) }
+
+    fun undoSettlement(id: Long) = viewModelScope.launch { repo.undoSettlement(id) }
+
     fun settle(ledgerId: Long, cents: Long) = viewModelScope.launch { repo.settle(ledgerId, cents) }
 
     fun setDefaultRate(rate: FxRate) = repo.setDefaultRate(rate)

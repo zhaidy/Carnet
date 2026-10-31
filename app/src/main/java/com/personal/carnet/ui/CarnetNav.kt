@@ -64,6 +64,7 @@ import com.personal.carnet.ui.screens.BillsScreen
 private object Routes {
     const val HOME = "home"
     const val BILLS = "bills"
+    const val LEDGER_BILLS = "bills/ledger/{id}"
     const val EDIT_ENTRY = "entry/{id}"
     const val EDIT_ACCOUNT = "account/edit/{id}"
     const val EDIT_LEDGER = "ledger/edit/{id}"
@@ -133,10 +134,17 @@ fun CarnetRoot(vm: MainViewModel) {
                     composable(Routes.BILLS) {
                         BillsScreen(snap, onOpen = { nav.navigate("entry/${it.id}") })
                     }
+                    composable(Routes.LEDGER_BILLS, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        BillsScreen(
+                            snap, onOpen = { nav.navigate("entry/${it.id}") },
+                            initialLedgerId = back.arguments?.getLong("id"), onBack = { nav.popBackStack() },
+                        )
+                    }
                     composable(Routes.LEDGERS) {
                         LedgersScreen(
                             snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) },
                             onEdit = { nav.navigate("ledger/edit/${it.ledger.id}") },
+                            onOpenBills = { nav.navigate("bills/ledger/${it.ledger.id}") },
                         )
                     }
                     composable(Routes.ACCOUNTS) {

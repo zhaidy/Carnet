@@ -122,6 +122,9 @@ interface CarnetDao {
     @Query("DELETE FROM settlements WHERE ledgerId = :id")
     suspend fun deleteSettlementsIn(id: Long)
 
+    @Query("SELECT * FROM settlements WHERE ledgerId = :ledgerId")
+    suspend fun settlementsInNow(ledgerId: Long): List<Settlement>
+
     @Query("DELETE FROM settlements WHERE id = :id")
     suspend fun deleteSettlement(id: Long)
 }

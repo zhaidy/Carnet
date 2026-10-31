@@ -134,6 +134,27 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         moveToLedger(entryId, shared.id)
     }
 
+    /** 改了、撤销了一次两清后通知同步（第三个参数：是不是撤销） */
+    var onSettlementChanged: ((Settlement, Ledger?, Boolean) -> Unit)? = null
+
+    /** 把一次两清改成两清到 [date] 那天为止（含那天），金额按新的区间重算 */
+    suspend fun moveSettlement(id: Long, date: LocalDate) {
+        val s = dao.settlement(id) ?: return
+        val ledger = dao.ledgersNow().firstOrNull { it.id == s.ledgerId } ?: return
+        val time = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() - 1
+        val previous = dao.settlementsInNow(s.ledgerId).filter { it.id != id && it.timeMillis < time }.maxOfOrNull { it.timeMillis } ?: Long.MIN_VALUE
+        val moved = s.copy(timeMillis = time, cents = Books.balanceBetween(ledger, dao.entriesNow(), previous, time))
+        dao.update(moved)
+        onSettlementChanged?.invoke(moved, ledger, false)
+    }
+
+    /** 撤销一次两清：这之前的账重新算进去 */
+    suspend fun undoSettlement(id: Long) {
+        val s = dao.settlement(id) ?: return
+        dao.deleteSettlement(id)
+        onSettlementChanged?.invoke(s, dao.ledgersNow().firstOrNull { it.id == s.ledgerId }, true)
+    }
+
     suspend fun settle(ledgerId: Long, cents: Long) =
         dao.insert(Settlement(ledgerId = ledgerId, timeMillis = System.currentTimeMillis(), cents = cents))
 

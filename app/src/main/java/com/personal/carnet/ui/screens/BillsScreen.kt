@@ -52,14 +52,14 @@ import java.time.YearMonth
 
 /** 账单：所有记过的账，按月翻、按天分组，能搜、能筛；点一笔进去改 */
 @Composable
-fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit) {
+fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Long? = null, onBack: (() -> Unit)? = null) {
     val now = YearMonth.now()
     var query by rememberSaveable { mutableStateOf("") }
     // 年×12+月，方便存
     var monthIndex by rememberSaveable { mutableIntStateOf(now.year * 12 + now.monthValue - 1) }
     var allTime by rememberSaveable { mutableStateOf(false) }
     var kind by rememberSaveable { mutableStateOf<EntryKind?>(null) }
-    var ledgerId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var ledgerId by rememberSaveable { mutableStateOf(initialLedgerId) }
     var accountId by rememberSaveable { mutableStateOf<Long?>(null) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -72,11 +72,11 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit) {
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 130.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = if (onBack != null) 40.dp else 130.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
-            ScreenHeader("账单") {
+            ScreenHeader(initialLedgerId?.let { ledgers[it]?.name } ?: "账单", onBack = onBack) {
                 PillButton(if (extraFilters.isEmpty()) "筛选" else "筛选 · ${extraFilters.size}") { filtersOpen = !filtersOpen }
             }
         }
