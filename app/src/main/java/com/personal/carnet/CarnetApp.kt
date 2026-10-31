@@ -25,6 +25,7 @@ class CarnetApp : Application() {
         Repository(database.dao(), Prefs(this)).also { repo ->
             repo.onEntryDeleted = { entry, ledger -> sync.onDeleted(entry, ledger) }
             repo.onEntryUpdated = { entry, ledger -> sync.onUpdated(entry, ledger) }
+            repo.onSettlementChanged = { s, ledger, undone -> sync.onSettlementChanged(s, ledger, undone) }
         }
     }
 

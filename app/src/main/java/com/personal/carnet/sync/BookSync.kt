@@ -136,6 +136,21 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         }
     }
 
+    /** 本机改了、撤销了一次同步过的两清 */
+    fun onSettlementChanged(s: Settlement, ledger: Ledger?, undone: Boolean) {
+        val code = ledger?.syncCode ?: return
+        val syncId = s.syncId ?: return
+        if (!available) return
+        scope.launch {
+            runCatching {
+                val uid = signIn()
+                val doc = book(code).collection(SETTLEMENTS).document(syncId)
+                if (undone) doc.set(mapOf("deleted" to true), SetOptions.merge()).await()
+                else doc.set(mapOf("timeMillis" to s.timeMillis, "cents" to s.cents, "author" to uid, "deleted" to false)).await()
+            }.onFailure { Log.w(TAG, "settlement update failed", it) }
+        }
+    }
+
     private suspend fun syncForever(ledgerId: Long, code: String) {
         while (true) {
             try {
@@ -218,11 +233,19 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
     }
 
     private suspend fun applyRemoteSettlement(ledgerId: Long, doc: DocumentSnapshot, uid: String) {
-        if (dao.settlementBySyncId(doc.id) != null) return
+        val existing = dao.settlementBySyncId(doc.id)
+        if (doc.get("deleted") == true) {
+            existing?.let { dao.deleteSettlement(it.id) }
+            return
+        }
         val time = (doc.get("timeMillis") as? Number)?.toLong() ?: return
         val cents = (doc.get("cents") as? Number)?.toLong() ?: 0
         val mine = doc.get("author") == uid
-        dao.insert(Settlement(ledgerId = ledgerId, timeMillis = time, cents = if (mine) cents else -cents, syncId = doc.id))
+        val remote = Settlement(ledgerId = ledgerId, timeMillis = time, cents = if (mine) cents else -cents, syncId = doc.id)
+        when {
+            existing == null -> dao.insert(remote)
+            existing.timeMillis != remote.timeMillis || existing.cents != remote.cents -> dao.update(remote.copy(id = existing.id))
+        }
     }
 
     private fun bookMeta(ledger: Ledger, uid: String) = mapOf(

@@ -63,6 +63,16 @@ object Books {
         return entries.filter { it.ledgerId == ledger.id && it.kind == EntryKind.EXPENSE && it.timeMillis > since }
     }
 
+    /**
+     * 两清改到 [to] 这一刻：那次两清的金额 = 上一次两清（[from]，不含）到 [to]（含）之间的共用开销算出来的。
+     */
+    fun balanceBetween(ledger: Ledger, entries: List<Entry>, from: Long, to: Long): Long =
+        Split.balance(
+            entries.filter { it.ledgerId == ledger.id && it.kind == EntryKind.EXPENSE && it.timeMillis > from && it.timeMillis <= to }
+                .map { SharedExpense(it.ledgerCents, it.payer == Payer.ME) },
+            ledger.myPercent,
+        )
+
     fun sharedBalance(ledger: Ledger, entries: List<Entry>, settlements: List<Settlement>): Long =
         Split.balance(
             openSharedExpenses(ledger, entries, settlements).map { SharedExpense(it.ledgerCents, it.payer == Payer.ME) },

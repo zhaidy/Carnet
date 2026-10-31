@@ -95,4 +95,20 @@ class BooksTest {
         val snap = Books.snapshot(listOf(card), listOf(personal, us), entries, emptyList(), rate, monthStartMillis = 100)
         assertEquals(1500L + 4300, snap.monthMySpendingCents)
     }
+
+    @Test
+    fun 两清改日期后按新区间算() {
+        val entries = listOf(
+            expense(1, us, 10000, bank, time = 100),
+            expense(2, us, 6000, null, payer = Payer.HER, time = 200),
+            expense(3, us, 4000, bank, time = 300),
+        )
+        // 只算 (100, 250]：她付的 60，你补她 30
+        assertEquals(-3000L, Books.balanceBetween(us, entries, 100, 250))
+        // 从头到 300：你付 100+40、她付 60 → 她补你 70-30 = 40
+        assertEquals(4000L, Books.balanceBetween(us, entries, Long.MIN_VALUE, 300))
+        // 改到 250 后，300 那笔又算进还没结的
+        val settled = listOf(Settlement(id = 1, ledgerId = us.id, timeMillis = 250, cents = 2000))
+        assertEquals(listOf(3L), Books.openSharedExpenses(us, entries, settled).map { it.id })
+    }
 }
