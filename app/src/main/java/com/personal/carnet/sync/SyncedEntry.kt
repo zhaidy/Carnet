@@ -4,6 +4,7 @@ import com.personal.carnet.data.Entry
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Payer
 import com.personal.carnet.domain.Currency
+import com.personal.carnet.domain.FxRate
 import java.security.SecureRandom
 
 /** 共用账本里的一笔在云端长什么样；账户不上传 */
@@ -45,6 +46,22 @@ object SyncedEntry {
             rate = (data["rate"] as? Number)?.toDouble(),
             syncId = syncId,
         )
+    }
+
+    /**
+     * 别人改了本机已有的一笔：金额、分类这些用云端的，
+     * 但本机记的是「我付的」、带着我的账户时，账户留着，账户扣的钱按新金额重算。
+     */
+    fun merge(existing: Entry, remote: Entry, accountCurrency: Currency?): Entry {
+        val keepAccount = remote.payer == Payer.ME && existing.accountId != null && accountCurrency != null
+        if (!keepAccount) return remote.copy(id = existing.id)
+        val rate = remote.rate ?: existing.rate
+        val accountCents = when {
+            accountCurrency == remote.currency -> remote.amountCents
+            rate != null -> FxRate(rate).convert(remote.amountCents, remote.currency, accountCurrency!!)
+            else -> existing.accountCents
+        }
+        return remote.copy(id = existing.id, accountId = existing.accountId, accountCents = accountCents)
     }
 }
 

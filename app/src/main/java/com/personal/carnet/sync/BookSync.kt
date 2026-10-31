@@ -123,6 +123,19 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         }
     }
 
+    /** 本机改了一笔同步过的账：整笔重新传上去，她那边跟着改 */
+    fun onUpdated(entry: Entry, ledger: Ledger?) {
+        val code = ledger?.syncCode ?: return
+        val syncId = entry.syncId ?: return
+        if (!available) return
+        scope.launch {
+            runCatching {
+                val uid = signIn()
+                book(code).collection(ENTRIES).document(syncId).set(SyncedEntry.toMap(entry, uid)).await()
+            }.onFailure { Log.w(TAG, "update failed", it) }
+        }
+    }
+
     private suspend fun syncForever(ledgerId: Long, code: String) {
         while (true) {
             try {
@@ -197,7 +210,10 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
             existing == null -> dao.insert(remote)
             // 自己记的那笔本机最全（带账户），不用云端的覆盖
             data["author"] == uid -> Unit
-            else -> dao.update(remote.copy(id = existing.id))
+            else -> {
+                val currency = existing.accountId?.let { id -> dao.accountsNow().firstOrNull { it.id == id }?.currency }
+                dao.update(SyncedEntry.merge(existing, remote, currency))
+            }
         }
     }
 

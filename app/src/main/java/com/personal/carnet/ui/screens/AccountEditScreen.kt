@@ -15,7 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,7 +32,12 @@ import com.personal.carnet.data.AccountType
 import com.personal.carnet.domain.Currency
 import com.personal.carnet.domain.FxRate
 import com.personal.carnet.domain.MainCurrency
+import com.personal.carnet.domain.AccountView
 import com.personal.carnet.domain.Money
+import com.personal.carnet.ui.glass.Palette
+import com.personal.carnet.ui.glass.glassControl
+import com.personal.carnet.ui.glass.jelly
+import kotlinx.coroutines.launch
 import com.personal.carnet.ui.IconPaths
 import com.personal.carnet.ui.MainViewModel
 import com.personal.carnet.ui.components.ChipRow
@@ -45,36 +52,43 @@ import com.personal.carnet.ui.components.Stepper
 import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.glass.holo
 
+/** 新建账户；editing 不是 null 时是改这个账户（币种不能改） */
 @Composable
-fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit) {
+fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountView? = null) {
     val toast = LocalToast.current
     val defaultRate by vm.defaultRate.collectAsState()
-    var name by rememberSaveable { mutableStateOf("") }
-    var type by rememberSaveable { mutableStateOf(AccountType.DEBIT) }
-    var currency by rememberSaveable { mutableStateOf(MainCurrency) }
-    var balance by rememberSaveable { mutableStateOf("") }
-    var dueDay by rememberSaveable { mutableIntStateOf(13) }
+    val old = editing?.account
+    val oldShown = editing?.let { if (it.account.type == AccountType.CREDIT) -it.balanceCents else it.balanceCents }
+    var name by rememberSaveable { mutableStateOf(old?.name ?: "") }
+    var type by rememberSaveable { mutableStateOf(old?.type ?: AccountType.DEBIT) }
+    var currency by rememberSaveable { mutableStateOf(old?.currency ?: MainCurrency) }
+    var balance by rememberSaveable { mutableStateOf(oldShown?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: "") }
+    var dueDay by rememberSaveable { mutableIntStateOf(old?.dueDay ?: 13) }
     var rateText by rememberSaveable { mutableStateOf(FxRate.format(defaultRate.cnyPerSgd)) }
-    var cashflow by rememberSaveable { mutableStateOf(true) }
+    var cashflow by rememberSaveable { mutableStateOf(old?.inCashflow ?: true) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var inUse by rememberSaveable { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    if (old != null) LaunchedEffect(old.id) { inUse = vm.accountInUse(old.id) }
 
     fun applyDefaults(t: AccountType, c: Currency) {
         type = t
         currency = c
-        cashflow = c == MainCurrency && t != AccountType.CREDIT
+        if (old == null) cashflow = c == MainCurrency && t != AccountType.CREDIT
     }
 
     val credit = type == AccountType.CREDIT
     val cents = Money.fromInput(balance)
-    val foreign = currency != MainCurrency
+    val foreign = currency != MainCurrency && old == null
     val rate = FxRate.parse(rateText)
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader("新建账户", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改账户" else "新建账户", IconPaths.CLOSE, onBack = onDone)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ChipRow(
+            if (old == null) ChipRow(
                 listOf(
                     Triple("工行卡", AccountType.DEBIT, Currency.CNY),
                     Triple("支付宝", AccountType.WALLET, Currency.CNY),
@@ -101,7 +115,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                         Label(if (credit) "现在欠" else "现在有", size = 12.sp)
                         Strong(Money.format(cents, currency), size = 26.sp)
                     }
-                    if (foreign && rate != null) Label("≈ " + Money.format(rate.convert(cents, currency, MainCurrency), MainCurrency), weight = FontWeight.Bold, size = 12.sp)
+                    if (currency != MainCurrency) Label("≈ " + Money.format((rate ?: defaultRate).convert(cents, currency, MainCurrency), MainCurrency), weight = FontWeight.Bold, size = 12.sp)
                 }
             }
 
@@ -112,7 +126,11 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                         GlassField(name, { name = it }, "比如 工行卡", Modifier.weight(1f))
                     }
                     ChipRow(AccountType.entries.map { it to it.label }, type, "类型") { applyDefaults(it, currency) }
-                    ChipRow(Currency.entries.map { it to it.chip() }, currency, "币种") { applyDefaults(type, it) }
+                    if (old == null) ChipRow(Currency.entries.map { it to it.chip() }, currency, "币种") { applyDefaults(type, it) }
+                    else Row(verticalAlignment = Alignment.CenterVertically) {
+                        Label("币种", modifier = Modifier.width(56.dp))
+                        Label(currency.chip() + " · 记过账后不能改", size = 13.sp, weight = FontWeight.Medium)
+                    }
                 }
             }
 
@@ -123,6 +141,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                         Strong(currency.symbol, size = 16.sp)
                         GlassField(balance, { balance = it.filter { c -> c.isDigit() || c == '.' } }, "0.00", Modifier.weight(1f), decimal = true, fontSize = 17.sp)
                     }
+                    if (old != null) Label("和实际对不上就改成实际的数，以前记的账不动", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(start = 64.dp))
                     if (credit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
@@ -160,11 +179,60 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                 }
             }
         }
-        Box(Modifier.padding(16.dp).navigationBarsPadding()) {
-            CtaButton("添加账户") {
+        if (old != null && confirmDelete) {
+            Box(Modifier.padding(horizontal = 16.dp)) {
+                GlassCard(padding = 14.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (inUse) {
+                            Strong("这个账户删不了")
+                            Label("已经有账或者固定收支用到它了。不想再用的话，可以把余额改成 0、关掉「算进发薪前还能花」。", size = 12.sp, weight = FontWeight.Medium)
+                        } else {
+                            Strong("删掉「${old.name}」？")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
+                                        scope.launch {
+                                            if (vm.deleteAccount(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
+                                            else { inUse = true; toast.show("这个账户已经有账了，删不了") }
+                                        }
+                                    }.padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
+                                Box(
+                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { Strong("算了", size = 14.sp) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(Modifier.padding(16.dp).navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (old != null) {
+                Box(
+                    Modifier.glassControl(RoundedCornerShape(22.dp)).jelly { confirmDelete = !confirmDelete }.padding(horizontal = 18.dp, vertical = 18.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Strong("删除", size = 15.sp, color = Palette.Rose) }
+            }
+            CtaButton(if (old != null) "保存" else "添加账户", Modifier.weight(1f)) {
                 when {
                     name.isBlank() -> toast.show("先给账户起个名字")
                     foreign && rate == null -> toast.show("默认汇率要是大于 0 的数")
+                    old != null && editing != null -> {
+                        // 改的是「现在的余额」：差多少就把建账户时的余额挪多少，以前的账不动
+                        val target = if (credit) -cents else cents
+                        vm.updateAccount(
+                            old.copy(
+                                name = name.trim(), type = type,
+                                openingCents = old.openingCents + (target - editing.balanceCents),
+                                dueDay = if (credit) dueDay else null,
+                                inCashflow = cashflow,
+                            ),
+                        )
+                        toast.show("改好了「${name.trim()}」")
+                        onDone()
+                    }
                     else -> {
                         if (foreign && rate != null) vm.setDefaultRate(rate)
                         vm.addAccount(

@@ -10,6 +10,7 @@ import com.personal.carnet.auto.AutoSettings
 import com.personal.carnet.data.Account
 import com.personal.carnet.sync.BookSync
 import com.personal.carnet.sync.SyncStatus
+import com.personal.carnet.data.Entry
 import com.personal.carnet.data.EntryFactory
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
@@ -163,6 +164,7 @@ class MainViewModel(
     /** 回到前台时：到日子的固定收支记上 */
     fun onResume() = viewModelScope.launch { repo.processDue() }
 
+    /** 记一笔；editing 不是 null 时是改那一笔 */
     fun saveSpending(
         kind: EntryKind,
         ledger: Ledger,
@@ -173,19 +175,45 @@ class MainViewModel(
         amountCents: Long,
         currency: Currency,
         rate: FxRate,
+        timeMillis: Long = System.currentTimeMillis(),
+        editing: Entry? = null,
     ) {
-        val entry = EntryFactory.spending(kind, ledger, account, payer, category, note, amountCents, currency, rate)
-        viewModelScope.launch { repo.addEntry(entry) }
+        val entry = EntryFactory.spending(kind, ledger, account, payer, category, note, amountCents, currency, rate, timeMillis)
+        save(entry, editing)
     }
 
-    fun saveTransfer(from: Account, to: Account, fromCents: Long, toCents: Long, rate: FxRate?, note: String) {
-        val entry = EntryFactory.transfer(from, to, fromCents, toCents, rate, note)
-        viewModelScope.launch { repo.addEntry(entry) }
+    fun saveTransfer(
+        from: Account, to: Account, fromCents: Long, toCents: Long, rate: FxRate?, note: String,
+        timeMillis: Long = System.currentTimeMillis(), editing: Entry? = null,
+    ) {
+        val entry = EntryFactory.transfer(from, to, fromCents, toCents, rate, note, timeMillis, editing?.category ?: "transfer")
+        save(entry, editing)
+    }
+
+    private fun save(entry: Entry, editing: Entry?) = viewModelScope.launch {
+        if (editing == null) repo.addEntry(entry) else repo.updateEntry(entry.copy(id = editing.id, syncId = editing.syncId))
     }
 
     fun deleteEntry(id: Long) = viewModelScope.launch { repo.deleteEntry(id) }
 
     fun addAccount(account: Account) = viewModelScope.launch { repo.addAccount(account) }
+
+    fun updateAccount(account: Account) = viewModelScope.launch { repo.updateAccount(account) }
+
+    suspend fun accountInUse(id: Long): Boolean = repo.accountInUse(id)
+
+    suspend fun deleteAccount(id: Long): Boolean = repo.deleteAccount(id)
+
+    fun updateLedger(ledger: Ledger) = viewModelScope.launch { repo.updateLedger(ledger) }
+
+    suspend fun ledgerDeletable(id: Long): Boolean = repo.ledgerDeletable(id)
+
+    suspend fun deleteLedger(id: Long): Boolean = repo.deleteLedger(id)
+
+    fun updateRule(rule: RecurringRule) = viewModelScope.launch {
+        repo.updateRule(rule)
+        repo.processDue()
+    }
 
     fun addLedger(ledger: Ledger) = viewModelScope.launch { repo.addLedger(ledger) }
 

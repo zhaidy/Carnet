@@ -40,6 +40,25 @@ class SyncedEntryTest {
     }
 
     @Test
+    fun 她改了我记的账_我的账户留着() {
+        // 她把我记的 S$86 改成 S$90，她那边传上来的是「她记的、你付的」
+        val herEdit = SyncedEntry.toMap(mine.copy(payer = Payer.HER, amountCents = 9000, ledgerCents = 9000), "her")
+        val remote = SyncedEntry.fromMap("s1", herEdit, ledgerId = 2, myUid = "me")!!
+        val merged = SyncedEntry.merge(mine, remote, Currency.SGD)
+        assertEquals(7L, merged.id)
+        assertEquals(Payer.ME, merged.payer)
+        assertEquals(3L, merged.accountId)
+        assertEquals(9000L, merged.accountCents)
+        assertEquals(9000L, merged.ledgerCents)
+        // 用人民币账户付的，按这一笔的汇率重算账户扣多少
+        val cny = mine.copy(accountCents = 45580, rate = 5.30)
+        assertEquals(47700L, SyncedEntry.merge(cny, remote.copy(rate = 5.30), Currency.CNY).accountCents)
+        // 改成她付的：不动我的账户
+        val herPaid = SyncedEntry.fromMap("s1", SyncedEntry.toMap(mine.copy(amountCents = 9000), "her"), 2, "me")!!
+        assertNull(SyncedEntry.merge(mine, herPaid, Currency.SGD).accountId)
+    }
+
+    @Test
     fun 邀请码() {
         assertEquals("AB23CD", SyncCodes.normalize("ab2 3-cd"))
         assertNull(SyncCodes.normalize("AB0CD1"))

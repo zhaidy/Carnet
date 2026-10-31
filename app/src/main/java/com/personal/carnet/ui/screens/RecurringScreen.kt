@@ -56,6 +56,7 @@ fun RecurringScreen(
     onNew: () -> Unit,
     onSetActive: (RecurringRule, Boolean) -> Unit,
     onDelete: (RecurringRule) -> Unit,
+    onEdit: (RecurringRule) -> Unit = {},
 ) {
     val toast = LocalToast.current
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -138,6 +139,10 @@ fun RecurringScreen(
                 }
                 if (open == rule.id) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { onEdit(rule) }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Strong("改", size = 14.sp, color = Palette.Violet) }
                         Box(
                             Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
                                 onSetActive(rule, !rule.active)

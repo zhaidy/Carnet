@@ -24,6 +24,7 @@ class CarnetApp : Application() {
     val repository: Repository by lazy {
         Repository(database.dao(), Prefs(this)).also { repo ->
             repo.onEntryDeleted = { entry, ledger -> sync.onDeleted(entry, ledger) }
+            repo.onEntryUpdated = { entry, ledger -> sync.onUpdated(entry, ledger) }
         }
     }
 
