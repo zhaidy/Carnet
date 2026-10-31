@@ -2,7 +2,7 @@
 
 ## 本地编译
 
-- 云端会话启动时 `.claude/hooks/session-start.sh` 会在后台装好 Android SDK，推送前先在本地跑 `LANG=C.UTF-8 ./gradlew assembleDebug testDebugUnitTest`（测试名有中文，需要 UTF-8 locale）。
+- 云端会话启动时 `.claude/hooks/session-start.sh` 会在后台装好 Android SDK，推送前先在本地跑 `LANG=C.UTF-8 ./gradlew assembleDebug testDebugUnitTest`（测试名有中文，需要 UTF-8 locale）；CI 打的是 release 包，会多跑 `lintVitalRelease`，动了依赖或 Activity 时本地也跑一下。
 - 刚开会话时如果报找不到 SDK 或 `local.properties`，说明后台安装还没跑完，等一会再试。
 
 ## 记账的约定
