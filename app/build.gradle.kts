@@ -1,0 +1,83 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+}
+
+android {
+    namespace = "com.personal.carnet"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "com.personal.carnet"
+        minSdk = 26
+        targetSdk = 36
+        // CI 每次构建递增，以后应用内更新靠它判断有没有新版本
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = buildNumber
+        versionName = "0.1.$buildNumber"
+    }
+
+    // 固定签名：每次构建签名一致，新 APK 才能直接覆盖安装（数据保留）。
+    // 密钥来自 CI 的 Secrets；本地没配置时退回 Android 默认调试签名。
+    val keystorePath = System.getenv("CARNET_KEYSTORE_FILE")
+    if (keystorePath != null) {
+        signingConfigs {
+            create("carnet") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("CARNET_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("CARNET_KEY_ALIAS")
+                keyPassword = System.getenv("CARNET_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfigs.findByName("carnet")?.let { signingConfig = it }
+        }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("carnet") ?: signingConfigs.getByName("debug")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+ksp {
+    arg("room.generateKotlin", "true")
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+}
