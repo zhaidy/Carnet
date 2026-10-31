@@ -16,9 +16,9 @@
 
 ## 和她同步
 
-- 共用账本走 Firebase（和 Mise 共用一个项目）：`books/{邀请码}`、`entries/{syncId}`、`settlements/{syncId}`，见 `sync/BookSync.kt`。账户信息不上传；「谁付的」按记账人存（`paidByAuthor`），各自换成我 / 她。
+- 共用账本走 Carnet 自己的 Firebase 项目（不和 Mise 共用）：`books/{邀请码}`、`entries/{syncId}`、`settlements/{syncId}`，见 `sync/BookSync.kt`。账户信息不上传；「谁付的」按记账人存（`paidByAuthor`），各自换成我 / 她。
 - `app/google-services.json` 不进仓库：CI 从 Secret `GOOGLE_SERVICES_JSON` 写入，没配置时 `scripts/write-google-services.sh` 写占位文件，能编译但同步不可用。
-- Firestore 规则只有一份，`firestore.rules` 里连 Mise 的 kitchens 部分一起写着；改了要整份贴到 Firebase 控制台。
+- Firestore 规则在 `firestore.rules`，改了要整份贴到 Firebase 控制台 → Firestore → 规则。
 
 ## Pull request 流程
 
