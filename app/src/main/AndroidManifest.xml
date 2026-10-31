@@ -30,6 +30,19 @@
             </intent-filter>
         </activity>
 
+        <!-- 桌面小组件：发薪前还能花、这个月花了、谁补谁、接下来的固定收支；能拖大小 -->
+        <receiver
+            android:name=".widget.CarnetWidgetReceiver"
+            android:exported="true"
+            android:label="Carnet">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/carnet_widget_info" />
+        </receiver>
+
         <!-- 读 Google 钱包的付款通知自动记账；要在系统设置里给「通知使用权」 -->
         <service
             android:name=".auto.WalletListener"

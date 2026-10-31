@@ -55,7 +55,7 @@ import com.personal.carnet.ui.glass.holo
 /** 新建账户；editing 不是 null 时是改这个账户（币种不能改） */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountView? = null) {
+fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountView? = null, onReconcile: (() -> Unit)? = null) {
     val toast = LocalToast.current
     val defaultRate by vm.defaultRate.collectAsState()
     val old = editing?.account
@@ -169,9 +169,14 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                             ) { androidx.compose.material3.DatePicker(state) }
                         }
                         if (!calcOpen) {
-                            Box(
-                                Modifier.padding(start = 64.dp).glassControl(RoundedCornerShape(14.dp)).jelly { calcOpen = true }.padding(horizontal = 14.dp, vertical = 9.dp),
-                            ) { Strong("按账算", size = 13.sp, color = Palette.Violet) }
+                            Row(Modifier.padding(start = 64.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    Modifier.glassControl(RoundedCornerShape(14.dp)).jelly { calcOpen = true }.padding(horizontal = 14.dp, vertical = 9.dp),
+                                ) { Strong("按账算", size = 13.sp, color = Palette.Violet) }
+                                if (onReconcile != null) Box(
+                                    Modifier.glassControl(RoundedCornerShape(14.dp)).jelly(onClick = onReconcile).padding(horizontal = 14.dp, vertical = 9.dp),
+                                ) { Strong("和账单对账", size = 13.sp, color = Palette.Violet) }
+                            }
                         } else {
                             val entries = snapshot?.entries.orEmpty()
                             val owed = com.personal.carnet.domain.Cashflow.owedSince(old.id, entries, cleared)
