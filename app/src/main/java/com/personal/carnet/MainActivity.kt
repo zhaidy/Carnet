@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
         val app = application as CarnetApp
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Palette.Violet, onSurface = Palette.Ink)) {
-                val vm: MainViewModel = viewModel { MainViewModel(app.repository, app.updater) }
+                val vm: MainViewModel = viewModel { MainViewModel(app.repository, app.updater, app.autoSettings, app.assistant, app.autoRecorder) }
                 CarnetRoot(vm)
             }
         }

@@ -13,6 +13,7 @@ import com.personal.carnet.importer.ImportedRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
@@ -53,6 +54,27 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
     suspend fun addEntry(entry: Entry) = dao.insert(entry)
 
     suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
+
+    suspend fun snapshotNow(): Snapshot = snapshot.first()
+
+    /** 前后 3 分钟内同一个账户同样金额的，当作同一笔（钱包有时会重发通知） */
+    suspend fun hasSimilar(accountId: Long, cents: Long, timeMillis: Long): Boolean =
+        dao.countSimilar(accountId, cents, timeMillis - 180_000, timeMillis + 180_000) > 0
+
+    /** 把一笔改记到另一个账本，记进账本的金额按这一笔当时的汇率重新换算 */
+    suspend fun moveToLedger(entryId: Long, ledgerId: Long) {
+        val entry = dao.entry(entryId) ?: return
+        val ledger = dao.ledgersNow().firstOrNull { it.id == ledgerId } ?: return
+        val rate = entry.rate?.let { FxRate(it) } ?: prefs.defaultRate.value
+        val ledgerCurrency = ledger.currency ?: com.personal.carnet.domain.MainCurrency
+        dao.update(entry.copy(ledgerId = ledger.id, ledgerCents = rate.convert(entry.amountCents, entry.currency, ledgerCurrency)))
+    }
+
+    /** 自动记账「算我们俩的」：放进第一个共用账本 */
+    suspend fun moveToSharedLedger(entryId: Long) {
+        val shared = dao.ledgersNow().filter { it.shared }.minByOrNull { it.createdAt } ?: return
+        moveToLedger(entryId, shared.id)
+    }
 
     suspend fun settle(ledgerId: Long, cents: Long) =
         dao.insert(Settlement(ledgerId = ledgerId, timeMillis = System.currentTimeMillis(), cents = cents))

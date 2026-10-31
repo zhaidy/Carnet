@@ -38,6 +38,15 @@ interface CarnetDao {
     @Insert
     suspend fun insertAll(entries: List<Entry>)
 
+    @Query("SELECT * FROM entries WHERE id = :id")
+    suspend fun entry(id: Long): Entry?
+
+    @Update
+    suspend fun update(entry: Entry)
+
+    @Query("SELECT COUNT(*) FROM entries WHERE accountId = :accountId AND amountCents = :cents AND timeMillis BETWEEN :from AND :to")
+    suspend fun countSimilar(accountId: Long, cents: Long, from: Long, to: Long): Int
+
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteEntry(id: Long)
 

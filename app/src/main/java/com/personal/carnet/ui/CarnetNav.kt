@@ -52,6 +52,7 @@ import com.personal.carnet.ui.screens.LedgerEditScreen
 import com.personal.carnet.ui.screens.LedgersScreen
 import com.personal.carnet.ui.screens.MeScreen
 import com.personal.carnet.ui.screens.ImportScreen
+import com.personal.carnet.ui.screens.AutoScreen
 import com.personal.carnet.ui.screens.RecurringEditScreen
 import com.personal.carnet.ui.screens.RecurringScreen
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -67,6 +68,7 @@ private object Routes {
     const val RECURRING = "recurring"
     const val NEW_RULE = "recurring/new"
     const val IMPORT = "import"
+    const val AUTO = "auto"
 }
 
 private data class Tab(val route: String, val label: String, val icon: String)
@@ -84,6 +86,7 @@ fun CarnetRoot(vm: MainViewModel) {
     val toast = remember { ToastState() }
     val snapshot by vm.snapshot.collectAsState()
     val update by vm.update.collectAsState()
+    val autoConfig by vm.autoConfig.collectAsState()
     // 回到前台时把到日子的固定收支记上
     LifecycleResumeEffect(Unit) {
         vm.onResume()
@@ -110,6 +113,10 @@ fun CarnetRoot(vm: MainViewModel) {
                             onConfirm = vm::confirm,
                             onSkip = vm::skip,
                             onDelete = { vm.deleteEntry(it.id) },
+                            recentAuto = autoConfig.recent,
+                            onShareAuto = vm::shareAuto,
+                            onUndoAuto = vm::undoAuto,
+                            onKeepAuto = vm::keepAuto,
                         )
                     }
                     composable(Routes.LEDGERS) {
@@ -131,8 +138,10 @@ fun CarnetRoot(vm: MainViewModel) {
                             onOpenRecurring = { nav.navigate(Routes.RECURRING) },
                             onOpenAccounts = { nav.switchTab(Routes.ACCOUNTS) },
                             onOpenImport = { nav.navigate(Routes.IMPORT) },
+                            onOpenAuto = { nav.navigate(Routes.AUTO) },
                         )
                     }
+                    composable(Routes.AUTO) { AutoScreen(snap, vm, onBack = { nav.popBackStack() }) }
                     composable(Routes.IMPORT) { ImportScreen(snap, vm, onBack = { nav.popBackStack() }) }
                     composable(Routes.RECURRING) {
                         RecurringScreen(

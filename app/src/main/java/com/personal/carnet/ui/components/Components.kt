@@ -53,6 +53,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -238,11 +240,14 @@ fun GlassField(
     modifier: Modifier = Modifier,
     decimal: Boolean = false,
     fontSize: TextUnit = 15.sp,
+    secret: Boolean = false,
+    singleLine: Boolean = true,
 ) {
     BasicTextField(
         value = value,
         onValueChange = onChange,
-        singleLine = true,
+        singleLine = singleLine,
+        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
         textStyle = TextStyle(fontSize = fontSize, fontWeight = FontWeight.Bold, color = Palette.Ink),
         cursorBrush = SolidColor(Palette.Violet),
         keyboardOptions = if (decimal) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
