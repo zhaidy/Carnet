@@ -57,6 +57,9 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   } >> "$CLAUDE_ENV_FILE"
 fi
 
+# Firebase 配置不进仓库：有 GOOGLE_SERVICES_JSON 就用它，否则写一个占位文件，只为能编译
+./scripts/write-google-services.sh
+
 # 预热：下载 Gradle、依赖和 SDK 平台，容器缓存后编译更快。
 # Maven Central 偶尔返回 429，重试几次；还是失败也不挡住会话启动
 for delay in 10 30 60 0; do

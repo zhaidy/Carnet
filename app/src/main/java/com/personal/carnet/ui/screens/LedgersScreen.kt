@@ -44,18 +44,57 @@ import com.personal.carnet.ui.glass.glassControl
 import com.personal.carnet.ui.glass.holo
 import com.personal.carnet.ui.glass.jelly
 import com.personal.carnet.ui.shortDate
+import com.personal.carnet.ui.MainViewModel
+import com.personal.carnet.ui.components.GlassCard
+import com.personal.carnet.ui.components.GlassField
+import com.personal.carnet.sync.SyncException
+import com.personal.carnet.sync.SyncStatus
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
-fun LedgersScreen(snapshot: Snapshot, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit) {
+fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit) {
     var confirming by rememberSaveable { mutableStateOf<Long?>(null) }
+    var joining by rememberSaveable { mutableStateOf(false) }
+    var code by rememberSaveable { mutableStateOf("") }
     val toast = LocalToast.current
+    val scope = rememberCoroutineScope()
+    val status by vm.syncStatus.collectAsState()
 
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 130.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { ScreenHeader("账本") { PillButton("新建", IconPaths.PLUS, onClick = onNewLedger) } }
+        item {
+            ScreenHeader("账本") {
+                PillButton("加入", onClick = { joining = !joining })
+                PillButton("新建", IconPaths.PLUS, onClick = onNewLedger)
+            }
+        }
+        if (joining) {
+            item {
+                GlassCard(padding = 14.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Strong("用她给的邀请码加入")
+                        GlassField(code, { code = it.uppercase() }, "6 位邀请码", Modifier.fillMaxWidth(), fontSize = 18.sp)
+                        CtaButton("加入") {
+                            scope.launch {
+                                try {
+                                    val ledger = vm.join(code)
+                                    toast.show("加入了「${ledger.name}」，账会自动同步过来")
+                                    joining = false
+                                    code = ""
+                                } catch (e: SyncException) {
+                                    toast.show(e.message ?: "加入失败")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item {
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Label("我这个月一共花了", weight = FontWeight.Bold)
@@ -66,6 +105,19 @@ fun LedgersScreen(snapshot: Snapshot, onNewLedger: () -> Unit, onSettle: (Ledger
         items(snapshot.ledgers, key = { it.ledger.id }) { view ->
             LedgerCard(
                 view = view,
+                syncAvailable = vm.syncAvailable,
+                syncStatus = status[view.ledger.id],
+                onInvite = {
+                    scope.launch {
+                        try {
+                            val c = vm.invite(view.ledger)
+                            toast.show("邀请码 $c，让她在 Carnet 的账本页点「加入」")
+                        } catch (e: SyncException) {
+                            toast.show(e.message ?: "邀请失败")
+                        }
+                    }
+                },
+                onLeave = { vm.leaveSync(view.ledger) },
                 confirming = confirming == view.ledger.id,
                 onAskSettle = { confirming = view.ledger.id },
                 onCancel = { confirming = null },
@@ -80,7 +132,17 @@ fun LedgersScreen(snapshot: Snapshot, onNewLedger: () -> Unit, onSettle: (Ledger
 }
 
 @Composable
-private fun LedgerCard(view: LedgerView, confirming: Boolean, onAskSettle: () -> Unit, onCancel: () -> Unit, onConfirm: () -> Unit) {
+private fun LedgerCard(
+    view: LedgerView,
+    syncAvailable: Boolean,
+    syncStatus: SyncStatus?,
+    onInvite: () -> Unit,
+    onLeave: () -> Unit,
+    confirming: Boolean,
+    onAskSettle: () -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
     val l = view.ledger
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -120,6 +182,28 @@ private fun LedgerCard(view: LedgerView, confirming: Boolean, onAskSettle: () ->
                 if (view.periodCents > 0 && !confirming) {
                     Box(Modifier.glassControl().jelly(onClick = onAskSettle).padding(horizontal = 14.dp, vertical = 9.dp)) {
                         Strong("结算", size = 13.sp, color = Palette.Violet)
+                    }
+                }
+            }
+            val syncCode = l.syncCode
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    when {
+                        syncCode != null -> {
+                            Label("和她同步中 · 邀请码 $syncCode" + (syncStatus?.members?.let { " · $it 台手机" } ?: ""), size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            syncStatus?.error?.let { Label(it, size = 11.sp, color = Palette.Rose) }
+                        }
+                        syncAvailable -> Label("还没和她同步：她那边看不到这些账", size = 12.sp, weight = FontWeight.Medium)
+                        else -> Label("这个版本还没接上 Firebase，暂时不能和她同步", size = 12.sp, weight = FontWeight.Medium)
+                    }
+                }
+                if (syncCode == null && syncAvailable) {
+                    Box(Modifier.glassControl().jelly(onClick = onInvite).padding(horizontal = 14.dp, vertical = 9.dp)) {
+                        Strong("邀请她", size = 13.sp, color = Palette.Violet)
+                    }
+                } else if (syncCode != null) {
+                    Box(Modifier.glassControl().jelly(onClick = onLeave).padding(horizontal = 12.dp, vertical = 9.dp)) {
+                        Strong("停止同步", size = 12.sp, color = Palette.Muted)
                     }
                 }
             }

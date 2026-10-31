@@ -14,6 +14,12 @@
 - 改表要升数据库版本并手写 `Migration`，SQL 照抄 `app/schemas/` 里 Room 导出的 `createSql`，再在 `MigrationTest` 里加一条对照；不要用 destructive migration，会把账清空。
 - 应用内更新读 `zhaidy/Carnet` 的 GitHub Releases（`build-N` 标签，N 就是 versionCode），只有配了签名密钥的 `main` 构建才会发 Release。
 
+## 和她同步
+
+- 共用账本走 Firebase（和 Mise 共用一个项目）：`books/{邀请码}`、`entries/{syncId}`、`settlements/{syncId}`，见 `sync/BookSync.kt`。账户信息不上传；「谁付的」按记账人存（`paidByAuthor`），各自换成我 / 她。
+- `app/google-services.json` 不进仓库：CI 从 Secret `GOOGLE_SERVICES_JSON` 写入，没配置时 `scripts/write-google-services.sh` 写占位文件，能编译但同步不可用。
+- Firestore 规则只有一份，`firestore.rules` 里连 Mise 的 kitchens 部分一起写着；改了要整份贴到 Firebase 控制台。
+
 ## Pull request 流程
 
 - 推送分支后创建 PR，CI（`build`）通过后自动合并，不需要再问。

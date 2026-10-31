@@ -36,6 +36,13 @@ jobs:
           else
             echo "::warning::CARNET_KEYSTORE_BASE64 未配置，使用调试签名"
           fi
+      # Firebase 配置放在 Secrets 里，不进仓库；没配置时用占位的，能编译但和她同步不可用
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then echo "::warning::GOOGLE_SERVICES_JSON 未配置，和她同步不可用"; fi
+          ./scripts/write-google-services.sh
       - run: chmod +x gradlew && ./gradlew assembleRelease testDebugUnitTest
       - run: mv app/build/outputs/apk/release/app-release.apk carnet.apk
       - uses: actions/upload-artifact@v4

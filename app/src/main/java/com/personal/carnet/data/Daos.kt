@@ -74,6 +74,30 @@ interface CarnetDao {
     @Update
     suspend fun update(rule: RecurringRule)
 
+    @Update
+    suspend fun update(ledger: Ledger)
+
+    @Query("SELECT * FROM entries WHERE syncId = :syncId LIMIT 1")
+    suspend fun entryBySyncId(syncId: String): Entry?
+
+    @Query("DELETE FROM entries WHERE syncId = :syncId")
+    suspend fun deleteEntryBySyncId(syncId: String)
+
+    @Query("SELECT * FROM entries WHERE ledgerId = :ledgerId")
+    fun entriesIn(ledgerId: Long): Flow<List<Entry>>
+
+    @Query("SELECT * FROM settlements WHERE ledgerId = :ledgerId")
+    fun settlementsIn(ledgerId: Long): Flow<List<Settlement>>
+
+    @Query("SELECT * FROM settlements WHERE syncId = :syncId LIMIT 1")
+    suspend fun settlementBySyncId(syncId: String): Settlement?
+
+    @Update
+    suspend fun update(settlement: Settlement)
+
+    @Query("SELECT * FROM settlements WHERE id = :id")
+    suspend fun settlement(id: Long): Settlement?
+
     @Query("DELETE FROM recurring_rules WHERE id = :id")
     suspend fun deleteRule(id: Long)
 

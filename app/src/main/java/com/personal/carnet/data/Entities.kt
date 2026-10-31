@@ -50,6 +50,8 @@ data class Ledger(
     /** 选日期结时的那天（epochDay） */
     val settleEpochDay: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** 和她同步时的邀请码；没同步是 null */
+    val syncCode: String? = null,
 )
 
 enum class EntryKind { EXPENSE, INCOME, TRANSFER }
@@ -81,6 +83,8 @@ data class Entry(
     val toAccountId: Long? = null,
     val toCents: Long = 0,
     val rate: Double? = null,
+    /** 同步到共用账本后的 id；本机还没传上去、或者不在同步的账本里是 null */
+    val syncId: String? = null,
 )
 
 /** 结过一次账：这之前的共用开销都两清了 */
@@ -91,4 +95,5 @@ data class Settlement(
     val timeMillis: Long,
     /** 结的时候是多少（正数：她补你） */
     val cents: Long,
+    val syncId: String? = null,
 )

@@ -1,0 +1,293 @@
+package com.personal.carnet.sync
+
+import android.util.Log
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SetOptions
+import com.personal.carnet.data.CarnetDao
+import com.personal.carnet.data.Entry
+import com.personal.carnet.data.Ledger
+import com.personal.carnet.data.SettleMode
+import com.personal.carnet.data.Settlement
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
+import java.security.SecureRandom
+import java.util.UUID
+
+class SyncException(message: String) : Exception(message)
+
+data class SyncStatus(val members: Int? = null, val error: String? = null)
+
+/**
+ * 共用账本和她同步。云端是 books/{邀请码}（成员、账本名、货币、各自出几成、怎么结），
+ * books/{邀请码}/entries/{syncId}（一笔开销）和 books/{邀请码}/settlements/{syncId}（两清）。
+ *
+ * 只同步共用账本里的账：金额、分类、备注、谁付的、记进账本多少；**你的账户不上传**，
+ * 对方记的账在你这边不动你的账户。「谁付的」存成相对记账人的（paidByAuthor），各自换成「我 / 她」。
+ * 删掉的账在云端留一条 deleted 标记，对方那边也删掉。
+ */
+class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
+
+    /** 占位的 google-services.json 编出来的包不能同步 */
+    val available: Boolean by lazy {
+        runCatching { FirebaseApp.getInstance().options.projectId }.getOrNull()?.let { it != PLACEHOLDER_PROJECT } ?: false
+    }
+
+    private val auth by lazy { FirebaseAuth.getInstance() }
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
+
+    private val _status = MutableStateFlow<Map<Long, SyncStatus>>(emptyMap())
+    /** 每个在同步的账本（本机 id）现在怎样 */
+    val status: StateFlow<Map<Long, SyncStatus>> = _status.asStateFlow()
+
+    fun start() {
+        if (!available) return
+        scope.launch {
+            dao.ledgers()
+                .map { list -> list.filter { it.syncCode != null }.map { it.id to it.syncCode!! } }
+                .distinctUntilChanged()
+                .collectLatest { synced ->
+                    coroutineScope { synced.forEach { (id, code) -> launch { syncForever(id, code) } } }
+                }
+        }
+    }
+
+    /** 把一个共用账本传上去，返回邀请码，发给她 */
+    suspend fun invite(ledger: Ledger): String {
+        ledger.syncCode?.let { return it }
+        requireAvailable()
+        val uid = signIn()
+        val code = SyncCodes.generate(SecureRandom())
+        remote { book(code).set(bookMeta(ledger, uid) + mapOf("members" to listOf(uid), "createdAt" to FieldValue.serverTimestamp())).await() }
+        dao.update(ledger.copy(syncCode = code))
+        return code
+    }
+
+    /** 用她给的邀请码加入，本机新建一个对应的共用账本 */
+    suspend fun join(input: String): Ledger {
+        requireAvailable()
+        val code = SyncCodes.normalize(input) ?: throw SyncException("邀请码是 ${SyncCodes.LENGTH} 位字母和数字")
+        dao.ledgersNow().firstOrNull { it.syncCode == code }?.let { return it }
+        val uid = signIn()
+        val snap = remote {
+            book(code).update("members", FieldValue.arrayUnion(uid)).await()
+            book(code).get().await()
+        }
+        val ledger = ledgerFrom(snap, code, uid)
+        val id = dao.insert(ledger)
+        return ledger.copy(id = id)
+    }
+
+    /** 不再同步：本机的账都留着 */
+    suspend fun leave(ledger: Ledger) {
+        dao.update(ledger.copy(syncCode = null))
+        _status.update { it - ledger.id }
+    }
+
+    /** 本机删掉一笔同步过的账：云端留删除标记，她那边也删 */
+    fun onDeleted(entry: Entry, ledger: Ledger?) {
+        val code = ledger?.syncCode ?: return
+        val syncId = entry.syncId ?: return
+        if (!available) return
+        scope.launch {
+            runCatching {
+                signIn()
+                book(code).collection(ENTRIES).document(syncId)
+                    .set(mapOf("deleted" to true, "updatedAt" to FieldValue.serverTimestamp()), SetOptions.merge()).await()
+            }
+        }
+    }
+
+    private suspend fun syncForever(ledgerId: Long, code: String) {
+        while (true) {
+            try {
+                val uid = signIn()
+                sync(ledgerId, book(code), uid)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "sync failed", e)
+                setStatus(ledgerId) { it.copy(error = (e as? SyncException)?.message ?: e.message ?: e.javaClass.simpleName) }
+            }
+            delay(RETRY_MS)
+        }
+    }
+
+    private suspend fun sync(ledgerId: Long, book: DocumentReference, uid: String) = coroutineScope {
+        launch {
+            snapshots(book).collect { snap ->
+                setStatus(ledgerId) { SyncStatus(members = (snap.get("members") as? List<*>)?.size, error = null) }
+            }
+        }
+        // 云端 → 本机
+        launch {
+            querySnapshots(book.collection(ENTRIES)).collect { snap ->
+                for (change in snap.documentChanges) {
+                    if (change.type == DocumentChange.Type.REMOVED) continue
+                    applyRemoteEntry(ledgerId, change.document, uid)
+                }
+            }
+        }
+        launch {
+            querySnapshots(book.collection(SETTLEMENTS)).collect { snap ->
+                for (change in snap.documentChanges) {
+                    if (change.type == DocumentChange.Type.REMOVED) continue
+                    applyRemoteSettlement(ledgerId, change.document, uid)
+                }
+            }
+        }
+        // 本机 → 云端：还没有 syncId 的就是新记的
+        launch {
+            dao.entriesIn(ledgerId).collect { entries ->
+                for (entry in entries.filter { it.syncId == null }) {
+                    val syncId = UUID.randomUUID().toString()
+                    dao.update(entry.copy(syncId = syncId))
+                    remote { book.collection(ENTRIES).document(syncId).set(SyncedEntry.toMap(entry, uid)).await() }
+                }
+            }
+        }
+        launch {
+            dao.settlementsIn(ledgerId).collect { list ->
+                for (s in list.filter { it.syncId == null }) {
+                    val syncId = UUID.randomUUID().toString()
+                    dao.update(s.copy(syncId = syncId))
+                    remote {
+                        book.collection(SETTLEMENTS).document(syncId)
+                            .set(mapOf("timeMillis" to s.timeMillis, "cents" to s.cents, "author" to uid)).await()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun applyRemoteEntry(ledgerId: Long, doc: DocumentSnapshot, uid: String) {
+        val data = doc.data ?: return
+        val existing = dao.entryBySyncId(doc.id)
+        if (data["deleted"] == true) {
+            if (existing != null) dao.deleteEntryBySyncId(doc.id)
+            return
+        }
+        val remote = SyncedEntry.fromMap(doc.id, data, ledgerId, uid) ?: return
+        when {
+            existing == null -> dao.insert(remote)
+            // 自己记的那笔本机最全（带账户），不用云端的覆盖
+            data["author"] == uid -> Unit
+            else -> dao.update(remote.copy(id = existing.id))
+        }
+    }
+
+    private suspend fun applyRemoteSettlement(ledgerId: Long, doc: DocumentSnapshot, uid: String) {
+        if (dao.settlementBySyncId(doc.id) != null) return
+        val time = (doc.get("timeMillis") as? Number)?.toLong() ?: return
+        val cents = (doc.get("cents") as? Number)?.toLong() ?: 0
+        val mine = doc.get("author") == uid
+        dao.insert(Settlement(ledgerId = ledgerId, timeMillis = time, cents = if (mine) cents else -cents, syncId = doc.id))
+    }
+
+    private fun bookMeta(ledger: Ledger, uid: String) = mapOf(
+        "name" to ledger.name,
+        "currency" to (ledger.currency?.code ?: "SGD"),
+        "percent" to mapOf(uid to ledger.myPercent),
+        "settleMode" to ledger.settleMode.name,
+        "settleDay" to ledger.settleDay,
+        "settleEpochDay" to ledger.settleEpochDay,
+    )
+
+    private fun ledgerFrom(snap: DocumentSnapshot, code: String, uid: String): Ledger {
+        if (!snap.exists()) throw SyncException("邀请码不对")
+        val percent = (snap.get("percent") as? Map<*, *>).orEmpty()
+        val mine = (percent[uid] as? Number)?.toInt()
+            ?: percent.values.firstOrNull()?.let { 100 - (it as Number).toInt() }
+            ?: 50
+        return Ledger(
+            name = snap.getString("name") ?: "我们俩",
+            currency = com.personal.carnet.domain.Currency.of(snap.getString("currency")) ?: com.personal.carnet.domain.Currency.SGD,
+            shared = true,
+            myPercent = mine,
+            settleMode = runCatching { SettleMode.valueOf(snap.getString("settleMode")!!) }.getOrDefault(SettleMode.MONTHLY),
+            settleDay = (snap.get("settleDay") as? Number)?.toInt() ?: 31,
+            settleEpochDay = (snap.get("settleEpochDay") as? Number)?.toLong(),
+            syncCode = code,
+        )
+    }
+
+    private fun book(code: String) = firestore.collection(BOOKS).document(code)
+
+    private fun requireAvailable() {
+        if (!available) throw SyncException("这个版本还没接上 Firebase，暂时不能和她同步")
+    }
+
+    private suspend fun signIn(): String = remote {
+        auth.currentUser?.uid ?: requireNotNull(auth.signInAnonymously().await().user).uid
+    }
+
+    private fun setStatus(ledgerId: Long, change: (SyncStatus) -> SyncStatus) =
+        _status.update { it + (ledgerId to change(it[ledgerId] ?: SyncStatus())) }
+
+    /** 联网操作：超时或出错都转成能直接给人看的提示 */
+    private suspend fun <T> remote(block: suspend () -> T): T = try {
+        withTimeout(TIMEOUT_MS) { block() }
+    } catch (e: TimeoutCancellationException) {
+        throw SyncException("连不上服务器，检查一下网络")
+    } catch (e: FirebaseFirestoreException) {
+        throw SyncException(
+            when (e.code) {
+                FirebaseFirestoreException.Code.NOT_FOUND -> "邀请码不对"
+                FirebaseFirestoreException.Code.PERMISSION_DENIED -> "没有权限：邀请码不对，或者 Firestore 规则还没加上 Carnet 的部分"
+                FirebaseFirestoreException.Code.UNAVAILABLE -> "连不上服务器，检查一下网络"
+                else -> "出错了：${e.message}"
+            },
+        )
+    } catch (e: FirebaseAuthException) {
+        throw SyncException("登录失败：${e.message}")
+    }
+
+    private fun snapshots(ref: DocumentReference): Flow<DocumentSnapshot> = callbackFlow {
+        val reg = ref.addSnapshotListener { snap, e ->
+            if (e != null) close(e) else if (snap != null) trySend(snap)
+        }
+        awaitClose { reg.remove() }
+    }
+
+    private fun querySnapshots(ref: CollectionReference): Flow<QuerySnapshot> = callbackFlow {
+        val reg = ref.addSnapshotListener { snap, e ->
+            if (e != null) close(e) else if (snap != null) trySend(snap)
+        }
+        awaitClose { reg.remove() }
+    }
+
+    private companion object {
+        const val TAG = "BookSync"
+        const val PLACEHOLDER_PROJECT = "carnet-local-placeholder"
+        const val BOOKS = "books"
+        const val ENTRIES = "entries"
+        const val SETTLEMENTS = "settlements"
+        const val TIMEOUT_MS = 20_000L
+        const val RETRY_MS = 30_000L
+    }
+}

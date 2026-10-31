@@ -120,7 +120,7 @@ fun CarnetRoot(vm: MainViewModel) {
                         )
                     }
                     composable(Routes.LEDGERS) {
-                        LedgersScreen(snap, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) })
+                        LedgersScreen(snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) })
                     }
                     composable(Routes.ACCOUNTS) {
                         AccountsScreen(snap, onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) }, onSetRate = vm::setDefaultRate)
