@@ -8,6 +8,8 @@ import com.personal.carnet.auto.AutoConfig
 import com.personal.carnet.auto.AutoRecorder
 import com.personal.carnet.auto.AutoSettings
 import com.personal.carnet.data.Account
+import com.personal.carnet.sync.BookSync
+import com.personal.carnet.sync.SyncStatus
 import com.personal.carnet.data.EntryFactory
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
@@ -61,7 +63,19 @@ class MainViewModel(
     private val auto: AutoSettings,
     private val assistant: Assistant,
     private val recorder: AutoRecorder,
+    private val sync: BookSync,
 ) : ViewModel() {
+
+    val syncAvailable: Boolean get() = sync.available
+    val syncStatus: StateFlow<Map<Long, SyncStatus>> get() = sync.status
+
+    /** 返回邀请码；出错抛 [SyncException]，提示可以直接给人看 */
+    suspend fun invite(ledger: Ledger): String = sync.invite(ledger)
+
+    suspend fun join(code: String): Ledger = sync.join(code)
+
+    fun leaveSync(ledger: Ledger) = viewModelScope.launch { sync.leave(ledger) }
+
 
     val autoConfig: StateFlow<AutoConfig> get() = auto.config
     val claudeReady: Boolean get() = assistant.configured

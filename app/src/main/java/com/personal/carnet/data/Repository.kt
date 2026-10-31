@@ -53,7 +53,15 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
 
     suspend fun addEntry(entry: Entry) = dao.insert(entry)
 
-    suspend fun deleteEntry(id: Long) = dao.deleteEntry(id)
+    /** 删掉一笔后通知同步，云端留删除标记 */
+    var onEntryDeleted: ((Entry, Ledger?) -> Unit)? = null
+
+    suspend fun deleteEntry(id: Long) {
+        val entry = dao.entry(id) ?: return
+        dao.deleteEntry(id)
+        val ledger = entry.ledgerId?.let { lid -> dao.ledgersNow().firstOrNull { it.id == lid } }
+        onEntryDeleted?.invoke(entry, ledger)
+    }
 
     suspend fun snapshotNow(): Snapshot = snapshot.first()
 
