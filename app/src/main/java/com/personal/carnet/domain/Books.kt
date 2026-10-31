@@ -6,6 +6,7 @@ import com.personal.carnet.data.Entry
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
 import com.personal.carnet.data.Payer
+import com.personal.carnet.data.RecurringRule
 import com.personal.carnet.data.Settlement
 
 data class AccountView(val account: Account, val balanceCents: Long)
@@ -35,6 +36,8 @@ data class Snapshot(
     val sharedBalanceCents: Long,
     /** 这个月你的花销：个人账本 + 共用账本里你那份 */
     val monthMySpendingCents: Long,
+    val rules: List<RecurringRule> = emptyList(),
+    val plan: Plan = Plan(emptyList(), emptyList(), null, null, 0),
 )
 
 object Books {

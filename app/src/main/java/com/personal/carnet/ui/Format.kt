@@ -37,10 +37,11 @@ fun Entry.line(accounts: Map<Long, Account>, ledgers: Map<Long, Ledger>): EntryL
         EntryKind.TRANSFER -> {
             val from = accounts[accountId]
             val to = accounts[toAccountId]
+            val card = category == "card_payment"
             EntryLine(
-                icon = Categories.TRANSFER_ICON,
+                icon = if (card) Categories.CARD_ICON else Categories.TRANSFER_ICON,
                 title = note.ifBlank { "${from?.name ?: "?"} → ${to?.name ?: "?"}" },
-                meta = shortDate(timeMillis) + " · 转账，不算花销",
+                meta = shortDate(timeMillis) + if (card) " · 还${to?.name ?: "信用卡"}全额" else " · 转账，不算花销",
                 amount = Money.format(accountCents, from?.currency ?: currency),
                 sub = to?.let { "到账 " + Money.format(toCents, it.currency) },
                 income = false,

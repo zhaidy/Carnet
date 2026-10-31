@@ -6,6 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.personal.carnet.domain.Currency
 
 class Converters {
@@ -17,9 +19,9 @@ class Converters {
 }
 
 @Database(
-    entities = [Account::class, Ledger::class, Entry::class, Settlement::class],
-    version = 1,
-    exportSchema = false,
+    entities = [Account::class, Ledger::class, Entry::class, Settlement::class, RecurringRule::class],
+    version = 2,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class CarnetDatabase : RoomDatabase() {
@@ -27,6 +29,22 @@ abstract class CarnetDatabase : RoomDatabase() {
 
     companion object {
         fun open(context: Context): CarnetDatabase =
-            Room.databaseBuilder(context, CarnetDatabase::class.java, "carnet.db").build()
+            Room.databaseBuilder(context, CarnetDatabase::class.java, "carnet.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
+
+        /** 第 2 版：加固定收支表。SQL 要和 Room 生成的一模一样（见 schemas/…/2.json） */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(RECURRING_TABLE_SQL)
+            }
+        }
+
+        const val RECURRING_TABLE_SQL =
+            "CREATE TABLE IF NOT EXISTS `recurring_rules` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL, `kind` TEXT NOT NULL, `category` TEXT NOT NULL, `amountCents` INTEGER NOT NULL, " +
+                "`approximate` INTEGER NOT NULL, `currency` TEXT NOT NULL, `cycle` TEXT NOT NULL, `day` INTEGER NOT NULL, " +
+                "`shiftWeekend` INTEGER NOT NULL, `accountId` INTEGER, `toAccountId` INTEGER, `ledgerId` INTEGER, " +
+                "`auto` INTEGER NOT NULL, `active` INTEGER NOT NULL, `lastDoneEpochDay` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)"
     }
 }

@@ -12,6 +12,8 @@ object Categories {
         Category("drink", "饮品", "M5 8h11v6a5 5 0 0 1-10 0zM16 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2"),
         Category("fun", "娱乐", "M6 7h12a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3zM8 11v3M6.5 12.5h3M15 12.5h2"),
         Category("home", "住房", "M4 11l8-7 8 7M6 10v10h12V10M10 20v-5h4v5"),
+        Category("phone", "话费", "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2"),
+        Category("sub", "订阅", "M4 6h16v11H4zM9 21h6M10.5 9.5v4l3.5-2z"),
         Category("more", "其他", "M4 12h2M11 12h2M18 12h2"),
     )
 
@@ -24,6 +26,7 @@ object Categories {
     )
 
     const val TRANSFER_ICON = "M4 8h14l-3-3M20 16H6l3 3"
+    const val CARD_ICON = "M5 6h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM3 10h18M7 15h3"
 
     private val all = (expense + income).associateBy { it.key }
 
