@@ -58,6 +58,8 @@ android {
 
 ksp {
     arg("room.generateKotlin", "true")
+    // 导出表结构，以后改表可以对照着写迁移
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -78,6 +80,8 @@ dependencies {
     ksp(libs.room.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

@@ -41,6 +41,30 @@ interface CarnetDao {
     @Insert
     suspend fun insert(settlement: Settlement): Long
 
+    @Query("SELECT * FROM recurring_rules ORDER BY createdAt")
+    fun rules(): Flow<List<RecurringRule>>
+
+    @Query("SELECT * FROM recurring_rules")
+    suspend fun rulesNow(): List<RecurringRule>
+
+    @Query("SELECT * FROM accounts")
+    suspend fun accountsNow(): List<Account>
+
+    @Query("SELECT * FROM ledgers")
+    suspend fun ledgersNow(): List<Ledger>
+
+    @Query("SELECT * FROM entries")
+    suspend fun entriesNow(): List<Entry>
+
+    @Insert
+    suspend fun insert(rule: RecurringRule): Long
+
+    @Update
+    suspend fun update(rule: RecurringRule)
+
+    @Query("DELETE FROM recurring_rules WHERE id = :id")
+    suspend fun deleteRule(id: Long)
+
     @Query("DELETE FROM settlements WHERE id = :id")
     suspend fun deleteSettlement(id: Long)
 }

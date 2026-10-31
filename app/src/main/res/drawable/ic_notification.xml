@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知栏的小图标：一颗四角星 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2 C12.7,8 15,10.3 21,11 C15,11.7 12.7,14 12,20 C11.3,14 9,11.7 3,11 C9,10.3 11.3,8 12,2 Z" />
+</vector>

@@ -35,33 +35,55 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.personal.carnet.data.Entry
 import com.personal.carnet.domain.Currency
 import com.personal.carnet.domain.MainCurrency
 import com.personal.carnet.domain.Money
+import com.personal.carnet.domain.Occurrence
 import com.personal.carnet.domain.Snapshot
 import com.personal.carnet.ui.EntryLine
 import com.personal.carnet.ui.LineIcon
 import com.personal.carnet.ui.Sparkle
+import com.personal.carnet.ui.UpdateState
 import com.personal.carnet.ui.components.ChipRow
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.GlassCard
 import com.personal.carnet.ui.components.Label
+import com.personal.carnet.ui.components.LocalToast
 import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.glass.Palette
+import com.personal.carnet.ui.glass.glass
 import com.personal.carnet.ui.glass.glassControl
 import com.personal.carnet.ui.glass.holo
 import com.personal.carnet.ui.glass.jelly
+import com.personal.carnet.ui.glass.tinted
 import com.personal.carnet.ui.line
 import com.personal.carnet.ui.todayText
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 @Composable
-fun HomeScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onOpenAccounts: () -> Unit, onOpenLedgers: () -> Unit) {
+fun HomeScreen(
+    snapshot: Snapshot,
+    update: UpdateState,
+    onOpenUpdate: () -> Unit,
+    onNewAccount: () -> Unit,
+    onOpenAccounts: () -> Unit,
+    onOpenLedgers: () -> Unit,
+    onOpenRecurring: () -> Unit,
+    onConfirm: (Occurrence) -> Unit,
+    onSkip: (Occurrence) -> Unit,
+    onDelete: (Entry) -> Unit,
+) {
+    val toast = LocalToast.current
     var ledgerFilter by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selected by rememberSaveable { mutableStateOf<Long?>(null) }
     val accounts = remember(snapshot) { snapshot.accounts.associate { it.account.id to it.account } }
     val ledgers = remember(snapshot) { snapshot.ledgers.associate { it.ledger.id to it.ledger } }
     val entries = remember(snapshot, ledgerFilter) {
-        snapshot.entries.filter { ledgerFilter == null || it.ledgerId == ledgerFilter }.take(60)
+        snapshot.entries.filter { ledgerFilter == null || it.ledgerId == ledgerFilter }.take(80)
     }
+    val plan = snapshot.plan
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -74,7 +96,23 @@ fun HomeScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onOpenAccounts: () 
                 Label(todayText())
             }
         }
-        item { NetWorthCard(snapshot, onOpenAccounts, onOpenLedgers) }
+        if (update is UpdateState.Available || update is UpdateState.Downloading) {
+            item {
+                val build = (update as? UpdateState.Available)?.info?.build ?: (update as UpdateState.Downloading).info.build
+                Row(
+                    Modifier.fillMaxWidth().tinted(RoundedCornerShape(20.dp), Palette.Cta).jelly(onClick = onOpenUpdate).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Sparkle(Color.White, 16.dp)
+                    Text(
+                        if (update is UpdateState.Downloading) "正在下载 build $build…" else "有新版本 build $build，点这里更新",
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        item { NetWorthCard(snapshot, onOpenAccounts, onOpenLedgers, onOpenRecurring) }
         if (snapshot.accounts.isEmpty()) {
             item {
                 GlassCard {
@@ -83,6 +121,26 @@ fun HomeScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onOpenAccounts: () 
                         Label("储蓄卡、两张信用卡、工行卡、支付宝、微信……填一下现在的余额，净资产就能算出来。", weight = FontWeight.Medium)
                         CtaButton("新建账户", onClick = onNewAccount)
                     }
+                }
+            }
+        }
+        if (plan.pending.isNotEmpty()) {
+            item { Strong("到日子了", modifier = Modifier.padding(start = 4.dp)) }
+            items(plan.pending, key = { "p" + it.rule.id + "_" + it.date }) { occ ->
+                PendingRow(occ, accounts, onConfirm = {
+                    onConfirm(occ)
+                    toast.show("已记下「${occ.rule.name}」")
+                }, onSkip = { onSkip(occ) })
+            }
+        }
+        if (plan.upcoming.isNotEmpty()) {
+            item {
+                Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Strong("接下来", modifier = Modifier.weight(1f))
+                        Box(Modifier.jelly(onClick = onOpenRecurring).padding(6.dp)) { Strong("全部", size = 13.sp, color = Palette.Violet) }
+                    }
+                    plan.upcoming.take(5).forEach { occ -> UpcomingRow(occ) }
                 }
             }
         }
@@ -97,18 +155,37 @@ fun HomeScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onOpenAccounts: () 
             item { GlassCard { Label("还没有记账。点右下角的 ＋ 记第一笔。", weight = FontWeight.Medium) } }
         }
         items(entries, key = { it.id }) { entry ->
-            EntryRow(entry.line(accounts, ledgers))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                EntryRow(entry.line(accounts, ledgers), onClick = { selected = if (selected == entry.id) null else entry.id })
+                if (selected == entry.id) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
+                                onDelete(entry)
+                                selected = null
+                                toast.show("已删掉这一笔")
+                            }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Strong("删掉这一笔", size = 14.sp, color = Palette.Rose) }
+                        Box(
+                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { selected = null }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Strong("算了", size = 14.sp) }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenLedgers: () -> Unit) {
+private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenLedgers: () -> Unit, onOpenRecurring: () -> Unit) {
     // 进来时数字从 0 滚到实际金额
     val shown = remember { Animatable(0f) }
     LaunchedEffect(snapshot.netWorthCents) {
         shown.animateTo(snapshot.netWorthCents.toFloat(), tween(1400, easing = FastOutSlowInEasing))
     }
+    val plan = snapshot.plan
     Column(
         Modifier.fillMaxWidth().holo(RoundedCornerShape(32.dp)).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -124,7 +201,14 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
             Sparkle(Color.White, 22.dp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Tile("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), Modifier.weight(1f), onOpenAccounts)
+            val spendable = plan.spendableCents
+            val payday = plan.payday
+            if (spendable != null && payday != null) {
+                val days = ChronoUnit.DAYS.between(LocalDate.now(), payday)
+                Tile("发薪前还能花", Money.format(spendable, MainCurrency), Modifier.weight(1f), onOpenRecurring, sub = "${payday.monthValue}/${payday.dayOfMonth} 发薪，还有 $days 天")
+            } else {
+                Tile("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), Modifier.weight(1f), onOpenAccounts, sub = "设好工资就能算发薪前还能花")
+            }
             Tile(
                 "国内账户",
                 Money.format(snapshot.cnyCashCents, Currency.CNY),
@@ -167,9 +251,59 @@ private fun Tile(
 }
 
 @Composable
-fun EntryRow(line: EntryLine, trailing: @Composable () -> Unit = {}) {
+private fun DateBadge(date: LocalDate) {
+    Column(
+        Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.6f)),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Label("${date.monthValue}月", size = 10.sp)
+        Strong("${date.dayOfMonth}", size = 17.sp)
+    }
+}
+
+fun occurrenceAmount(occ: Occurrence): String =
+    (if (occ.estimate) "≈ " else "") + (if (occ.inflow) "+" else "-") + Money.format(occ.cents, occ.currency)
+
+@Composable
+private fun UpcomingRow(occ: Occurrence) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        DateBadge(occ.date)
+        Column(Modifier.weight(1f)) {
+            Strong(occ.rule.name, size = 14.sp)
+            Label(if (occ.rule.auto) "到日子自动记" else "到日子先提醒你", size = 12.sp, weight = FontWeight.Medium)
+        }
+        Strong(occurrenceAmount(occ), size = 15.sp, color = if (occ.inflow) Palette.Teal else Palette.Ink)
+    }
+}
+
+@Composable
+private fun PendingRow(occ: Occurrence, accounts: Map<Long, com.personal.carnet.data.Account>, onConfirm: () -> Unit, onSkip: () -> Unit) {
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            DateBadge(occ.date)
+            Column(Modifier.weight(1f)) {
+                Strong("该${occ.rule.name}了", size = 15.sp)
+                Label(accounts[occ.rule.accountId]?.name ?: "", size = 12.sp)
+            }
+            Strong(occurrenceAmount(occ), size = 15.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { CtaButton("记下", onClick = onConfirm) }
+            Box(
+                Modifier.weight(1f).glassControl(RoundedCornerShape(22.dp)).jelly(onClick = onSkip).padding(vertical = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) { Strong("这次不记", size = 15.sp) }
+        }
+    }
+}
+
+@Composable
+fun EntryRow(line: EntryLine, onClick: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().glassControl(RoundedCornerShape(22.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().glassControl(RoundedCornerShape(22.dp))
+            .then(if (onClick != null) Modifier.jelly(onClick = onClick) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -185,7 +319,6 @@ fun EntryRow(line: EntryLine, trailing: @Composable () -> Unit = {}) {
             Strong(line.amount, size = 15.sp, color = if (line.income) Palette.Teal else Palette.Ink)
             if (line.sub != null) Label(line.sub, size = 11.sp)
         }
-        trailing()
     }
 }
 

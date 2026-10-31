@@ -50,6 +50,10 @@ import com.personal.carnet.ui.screens.AddScreen
 import com.personal.carnet.ui.screens.HomeScreen
 import com.personal.carnet.ui.screens.LedgerEditScreen
 import com.personal.carnet.ui.screens.LedgersScreen
+import com.personal.carnet.ui.screens.MeScreen
+import com.personal.carnet.ui.screens.RecurringEditScreen
+import com.personal.carnet.ui.screens.RecurringScreen
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 private object Routes {
     const val HOME = "home"
@@ -58,6 +62,9 @@ private object Routes {
     const val ADD = "add"
     const val NEW_ACCOUNT = "account/new"
     const val NEW_LEDGER = "ledger/new"
+    const val ME = "me"
+    const val RECURRING = "recurring"
+    const val NEW_RULE = "recurring/new"
 }
 
 private data class Tab(val route: String, val label: String, val icon: String)
@@ -66,6 +73,7 @@ private val tabs = listOf(
     Tab(Routes.HOME, "总览", IconPaths.HOME),
     Tab(Routes.LEDGERS, "账本", IconPaths.BOOK),
     Tab(Routes.ACCOUNTS, "账户", IconPaths.CARD),
+    Tab(Routes.ME, "我的", IconPaths.PERSON),
 )
 
 @Composable
@@ -73,6 +81,12 @@ fun CarnetRoot(vm: MainViewModel) {
     val nav = rememberNavController()
     val toast = remember { ToastState() }
     val snapshot by vm.snapshot.collectAsState()
+    val update by vm.update.collectAsState()
+    // 回到前台时把到日子的固定收支记上
+    LifecycleResumeEffect(Unit) {
+        vm.onResume()
+        onPauseOrDispose {}
+    }
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
@@ -85,9 +99,15 @@ fun CarnetRoot(vm: MainViewModel) {
                     composable(Routes.HOME) {
                         HomeScreen(
                             snap,
+                            update = update,
+                            onOpenUpdate = { nav.switchTab(Routes.ME) },
                             onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) },
                             onOpenAccounts = { nav.switchTab(Routes.ACCOUNTS) },
                             onOpenLedgers = { nav.switchTab(Routes.LEDGERS) },
+                            onOpenRecurring = { nav.navigate(Routes.RECURRING) },
+                            onConfirm = vm::confirm,
+                            onSkip = vm::skip,
+                            onDelete = { vm.deleteEntry(it.id) },
                         )
                     }
                     composable(Routes.LEDGERS) {
@@ -101,6 +121,25 @@ fun CarnetRoot(vm: MainViewModel) {
                     }
                     composable(Routes.NEW_ACCOUNT) { AccountEditScreen(vm, onDone = { nav.popBackStack() }) }
                     composable(Routes.NEW_LEDGER) { LedgerEditScreen(vm, onDone = { nav.popBackStack() }) }
+                    composable(Routes.ME) {
+                        MeScreen(
+                            snap, update, vm.currentBuild,
+                            onCheckUpdate = { vm.checkUpdate() },
+                            onInstall = vm::installUpdate,
+                            onOpenRecurring = { nav.navigate(Routes.RECURRING) },
+                            onOpenAccounts = { nav.switchTab(Routes.ACCOUNTS) },
+                        )
+                    }
+                    composable(Routes.RECURRING) {
+                        RecurringScreen(
+                            snap,
+                            onBack = { nav.popBackStack() },
+                            onNew = { nav.navigate(Routes.NEW_RULE) },
+                            onSetActive = { rule, active -> vm.setRuleActive(rule, active) },
+                            onDelete = { vm.deleteRule(it.id) },
+                        )
+                    }
+                    composable(Routes.NEW_RULE) { RecurringEditScreen(snap, vm, onDone = { nav.popBackStack() }) }
                 }
                 if (route in tabs.map { it.route }) {
                     TabBar(route, onTab = { nav.switchTab(it) }, onAdd = { nav.navigate(Routes.ADD) }, modifier = Modifier.align(Alignment.BottomCenter))
