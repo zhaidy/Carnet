@@ -51,8 +51,9 @@ import java.time.LocalDate
 
 private enum class RulePreset(val label: String) { SALARY("工资"), RENT("房租"), CARD("还信用卡"), SUB("订阅"), PHONE("话费"), OTHER("其他") }
 
+/** 新建固定收支；editing 不是 null 时是改这一条 */
 @Composable
-fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Unit) {
+fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Unit, editing: RecurringRule? = null) {
     val toast = LocalToast.current
     val accounts = snapshot.accounts.map { it.account }
     val cards = accounts.filter { it.type == AccountType.CREDIT }
@@ -60,22 +61,27 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
     val ledgers = snapshot.ledgers.map { it.ledger }
     val personal = ledgers.firstOrNull { !it.shared }
 
+    val old = editing
     var preset by rememberSaveable { mutableStateOf(RulePreset.SALARY) }
-    var name by rememberSaveable { mutableStateOf("工资") }
-    var kind by rememberSaveable { mutableStateOf(RuleKind.INCOME) }
-    var category by rememberSaveable { mutableStateOf("salary") }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var approximate by rememberSaveable { mutableStateOf(false) }
-    var currency by rememberSaveable { mutableStateOf(MainCurrency) }
-    var cycle by rememberSaveable { mutableStateOf(Cycle.MONTHLY) }
-    var day by rememberSaveable { mutableIntStateOf(26) }
-    var weekday by rememberSaveable { mutableIntStateOf(1) }
-    var month by rememberSaveable { mutableIntStateOf(1) }
-    var shift by rememberSaveable { mutableStateOf(true) }
-    var accountId by rememberSaveable { mutableStateOf(payFrom.firstOrNull()?.id) }
-    var cardId by rememberSaveable { mutableStateOf(cards.firstOrNull()?.id) }
-    var ledgerId by rememberSaveable { mutableStateOf(personal?.id) }
-    var auto by rememberSaveable { mutableStateOf(true) }
+    var name by rememberSaveable { mutableStateOf(old?.name ?: "工资") }
+    var kind by rememberSaveable { mutableStateOf(old?.kind ?: RuleKind.INCOME) }
+    var category by rememberSaveable { mutableStateOf(old?.category ?: "salary") }
+    var amount by rememberSaveable {
+        mutableStateOf(old?.takeIf { it.amountCents > 0 }?.let { java.math.BigDecimal.valueOf(it.amountCents).movePointLeft(2).setScale(2).toPlainString() } ?: "")
+    }
+    var approximate by rememberSaveable { mutableStateOf(old?.approximate ?: false) }
+    var currency by rememberSaveable { mutableStateOf(old?.currency ?: MainCurrency) }
+    var cycle by rememberSaveable { mutableStateOf(old?.cycle ?: Cycle.MONTHLY) }
+    var day by rememberSaveable {
+        mutableIntStateOf(when (old?.cycle) { null -> 26; Cycle.MONTHLY -> old.day; Cycle.YEARLY -> old.day % 100; Cycle.WEEKLY -> 1 })
+    }
+    var weekday by rememberSaveable { mutableIntStateOf(if (old?.cycle == Cycle.WEEKLY) old.day else 1) }
+    var month by rememberSaveable { mutableIntStateOf(if (old?.cycle == Cycle.YEARLY) old.day / 100 else 1) }
+    var shift by rememberSaveable { mutableStateOf(old?.shiftWeekend ?: true) }
+    var accountId by rememberSaveable { mutableStateOf(old?.accountId ?: payFrom.firstOrNull()?.id) }
+    var cardId by rememberSaveable { mutableStateOf(old?.toAccountId ?: cards.firstOrNull()?.id) }
+    var ledgerId by rememberSaveable { mutableStateOf(old?.ledgerId ?: personal?.id) }
+    var auto by rememberSaveable { mutableStateOf(old?.auto ?: true) }
 
     fun apply(p: RulePreset) {
         preset = p
@@ -112,18 +118,18 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
         toAccountId = if (kind == RuleKind.CARD_PAYMENT) cardId else null,
         ledgerId = if (kind == RuleKind.EXPENSE) ledgerId else null,
         auto = auto,
-        lastDoneEpochDay = LocalDate.now().toEpochDay(),
-    )
-    val next = Schedule.next(draft, LocalDate.now().plusDays(1))
+        lastDoneEpochDay = old?.lastDoneEpochDay ?: LocalDate.now().toEpochDay(),
+    ).let { if (old != null) it.copy(id = old.id, active = old.active, createdAt = old.createdAt) else it }
+    val next = Schedule.next(draft, maxOf(LocalDate.now(), LocalDate.ofEpochDay(draft.lastDoneEpochDay)).plusDays(1))
     val ledger = ledgers.firstOrNull { it.id == ledgerId }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader("新建固定收支", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改固定收支" else "新建固定收支", IconPaths.CLOSE, onBack = onDone)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ChipRow(RulePreset.entries.map { it to it.label }, preset, "是什么") { apply(it) }
+            if (old == null) ChipRow(RulePreset.entries.map { it to it.label }, preset, "是什么") { apply(it) }
 
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Strong(name.ifBlank { "新的固定收支" }, size = 18.sp)
@@ -139,7 +145,7 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
                             }
                         }
                         append(if (auto) "，到日子自动记一笔。" else "，到日子先在总览里提醒你。")
-                        if (approximate) append("金额会变的话，记下后可以删掉重记。")
+                        if (approximate) append("金额会变的话，记下后在账单里点开改。")
                     },
                     size = 13.sp, weight = FontWeight.Medium,
                 )
@@ -234,15 +240,16 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
             }
         }
         Box(Modifier.padding(16.dp).navigationBarsPadding()) {
-            CtaButton("保存", sub = "从下一次（${next.monthValue}/${next.dayOfMonth}）开始") {
+            CtaButton("保存", sub = if (old != null) "改的是以后的，已经记下的账不变" else "从下一次（${next.monthValue}/${next.dayOfMonth}）开始") {
                 when {
                     name.isBlank() -> toast.show("先起个名字")
                     kind != RuleKind.CARD_PAYMENT && cents <= 0 -> toast.show("先填金额")
                     draft.accountId == null -> toast.show("先选账户")
                     kind == RuleKind.CARD_PAYMENT && cardId == null -> toast.show("先选还哪张卡")
                     else -> {
-                        vm.addRule(if (kind == RuleKind.CARD_PAYMENT) draft.copy(currency = cards.first { it.id == cardId }.currency) else draft)
-                        toast.show("已建好「${name.trim()}」· 下次 ${next.monthValue}/${next.dayOfMonth}")
+                        val rule = if (kind == RuleKind.CARD_PAYMENT) draft.copy(currency = cards.first { it.id == cardId }.currency) else draft
+                        if (old != null) vm.updateRule(rule) else vm.addRule(rule)
+                        toast.show((if (old != null) "改好了" else "已建好") + "「${name.trim()}」· 下次 ${next.monthValue}/${next.dayOfMonth}")
                         onDone()
                     }
                 }

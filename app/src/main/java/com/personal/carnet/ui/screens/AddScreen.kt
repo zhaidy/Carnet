@@ -20,10 +20,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,10 +48,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personal.carnet.data.Account
+import com.personal.carnet.data.Entry
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Payer
 import com.personal.carnet.domain.Categories
 import com.personal.carnet.domain.Currency
+import com.personal.carnet.domain.EntrySearch
+import com.personal.carnet.domain.EntryTime
 import com.personal.carnet.domain.FxRate
 import com.personal.carnet.domain.MainCurrency
 import com.personal.carnet.domain.Money
@@ -70,38 +79,65 @@ import com.personal.carnet.ui.glass.holo
 import com.personal.carnet.ui.glass.jelly
 import com.personal.carnet.ui.glass.tinted
 import java.math.BigDecimal
+import java.time.LocalDate
 
 private enum class Mode(val label: String) { EXPENSE("支出"), INCOME("收入"), TRANSFER("转账") }
 
 private fun plain(cents: Long): String = BigDecimal.valueOf(cents).movePointLeft(2).setScale(2).toPlainString()
 
+/** 记一笔；editing 不是 null 时是改那一笔（从账单、总览点进来） */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewAccount: () -> Unit) {
+fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewAccount: () -> Unit, editing: Entry? = null) {
     val toast = LocalToast.current
     val defaultRate by vm.defaultRate.collectAsState()
     val accounts = snapshot.accounts.map { it.account }
     val ledgers = snapshot.ledgers.map { it.ledger }
     val personal = ledgers.firstOrNull { !it.shared } ?: ledgers.firstOrNull()
 
-    var mode by rememberSaveable { mutableStateOf(Mode.EXPENSE) }
-    var ledgerId by rememberSaveable { mutableStateOf(personal?.id) }
-    var payer by rememberSaveable { mutableStateOf(Payer.ME) }
-    var accountId by rememberSaveable { mutableStateOf(accounts.firstOrNull()?.id) }
-    var spend by rememberSaveable { mutableStateOf(accounts.firstOrNull()?.currency ?: MainCurrency) }
-    var category by rememberSaveable { mutableStateOf("food") }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var rateText by rememberSaveable { mutableStateOf("") }
+    val e = editing
+    val spending = e?.takeIf { it.kind != EntryKind.TRANSFER }
+    val moving = e?.takeIf { it.kind == EntryKind.TRANSFER }
+    var mode by rememberSaveable {
+        mutableStateOf(when (e?.kind) { EntryKind.INCOME -> Mode.INCOME; EntryKind.TRANSFER -> Mode.TRANSFER; else -> Mode.EXPENSE })
+    }
+    var ledgerId by rememberSaveable { mutableStateOf(spending?.ledgerId ?: personal?.id) }
+    var payer by rememberSaveable { mutableStateOf(spending?.payer ?: Payer.ME) }
+    var accountId by rememberSaveable { mutableStateOf(spending?.accountId ?: accounts.firstOrNull()?.id) }
+    var spend by rememberSaveable { mutableStateOf(spending?.currency ?: accounts.firstOrNull()?.currency ?: MainCurrency) }
+    var category by rememberSaveable { mutableStateOf(spending?.category ?: "food") }
+    var amount by rememberSaveable { mutableStateOf(spending?.let { plain(it.amountCents) } ?: "") }
+    var rateText by rememberSaveable { mutableStateOf(spending?.rate?.let { FxRate.format(it) } ?: "") }
     var rateOpen by rememberSaveable { mutableStateOf(false) }
-    var note by rememberSaveable { mutableStateOf("") }
+    var note by rememberSaveable { mutableStateOf(e?.note ?: "") }
+    var day by rememberSaveable { mutableLongStateOf(e?.let { EntrySearch.dateOf(it).toEpochDay() } ?: LocalDate.now().toEpochDay()) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var sentence by rememberSaveable { mutableStateOf("") }
     var thinking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    var fromId by rememberSaveable { mutableStateOf(accounts.firstOrNull { it.currency == MainCurrency }?.id ?: accounts.firstOrNull()?.id) }
-    var toId by rememberSaveable { mutableStateOf(accounts.firstOrNull { it.currency == Currency.CNY }?.id ?: accounts.getOrNull(1)?.id) }
-    var tFrom by rememberSaveable { mutableStateOf("") }
-    var tTo by rememberSaveable { mutableStateOf("") }
-    var tRate by rememberSaveable { mutableStateOf("") }
+    var fromId by rememberSaveable { mutableStateOf(moving?.accountId ?: accounts.firstOrNull { it.currency == MainCurrency }?.id ?: accounts.firstOrNull()?.id) }
+    var toId by rememberSaveable { mutableStateOf(moving?.toAccountId ?: accounts.firstOrNull { it.currency == Currency.CNY }?.id ?: accounts.getOrNull(1)?.id) }
+    var tFrom by rememberSaveable { mutableStateOf(moving?.let { plain(it.accountCents) } ?: "") }
+    var tTo by rememberSaveable { mutableStateOf(moving?.takeIf { it.rate != null }?.let { plain(it.toCents) } ?: "") }
+    var tRate by rememberSaveable { mutableStateOf(moving?.rate?.let { FxRate.format(it) } ?: "") }
+    val date = LocalDate.ofEpochDay(day)
+    val time = EntryTime.on(date, e?.timeMillis)
+
+    if (picking) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = day * 86_400_000L)
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { day = it / 86_400_000L }
+                    picking = false
+                }) { Text("好") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("取消") } },
+        ) { DatePicker(state) }
+    }
 
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(
@@ -109,6 +145,10 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RoundGlassButton(IconPaths.CLOSE, "关闭", onClick = onClose)
+            if (e != null) {
+                Text("改这一笔", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                RoundGlassButton(IconPaths.TRASH, "删掉这一笔") { confirmDelete = !confirmDelete }
+            } else {
             Spacer(Modifier.weight(1f))
             Row(Modifier.glassControl().padding(4.dp)) {
                 Mode.entries.forEach { m ->
@@ -129,6 +169,35 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             }
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(44.dp))
+            }
+        }
+
+        if (e != null && confirmDelete) {
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                GlassCard(padding = 14.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Strong("删掉这一笔？")
+                        Label(
+                            if (e.syncId != null) "她那边也会一起删掉。" else "删掉后账户余额会跟着变回去。",
+                            size = 12.sp, weight = FontWeight.Medium,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
+                                    vm.deleteEntry(e.id)
+                                    toast.show("已删掉这一笔")
+                                    onClose()
+                                }.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
+                            Box(
+                                Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Strong("算了", size = 14.sp) }
+                        }
+                    }
+                }
+            }
         }
 
         if (accounts.isEmpty() || personal == null) {
@@ -146,7 +215,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
 
         if (mode != Mode.TRANSFER) {
             val isIncome = mode == Mode.INCOME
-            val ledger = (if (isIncome) personal else ledgers.firstOrNull { it.id == ledgerId }) ?: personal
+            val ledger = (if (isIncome && e == null) personal else ledgers.firstOrNull { it.id == ledgerId }) ?: personal
             val account = accounts.firstOrNull { it.id == accountId } ?: accounts.first()
             val isGroup = !isIncome && ledger.shared
             val herPaid = isGroup && payer == Payer.HER
@@ -176,7 +245,13 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     kind = if (isIncome) EntryKind.INCOME else EntryKind.EXPENSE,
                     ledger = ledger, account = if (herPaid) null else account, payer = payer,
                     category = cat.key, note = note, amountCents = cents, currency = spend, rate = rate,
+                    timeMillis = time, editing = e,
                 )
+                if (e != null) {
+                    toast.show("改好了：「${ledger.name}」${Money.format(cents, spend)}")
+                    onClose()
+                    return
+                }
                 val msg = buildString {
                     append("已记到「${ledger.name}」${Money.format(cents, spend)}")
                     if (isGroup) {
@@ -296,6 +371,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                         if (isIncome || ledger.currency == null) spend = accounts.first { it.id == id }.currency
                     }
                 }
+                DateRow(date) { picking = true }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label("备注", modifier = Modifier.width(56.dp))
                     GlassField(note, { note = it }, "写点什么，可以不写", Modifier.weight(1f))
@@ -305,7 +381,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             Keypad(
                 onKey = { k -> amount = typeKey(amount, k) },
                 onDelete = { amount = amount.dropLast(1) },
-                onAgain = { save(close = false) },
+                onAgain = if (e == null) ({ save(close = false) }) else null,
                 onDone = { save(close = true) },
             )
         } else {
@@ -372,13 +448,14 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     }
                 }
                 Label("三个数填任意两个就行：填了转出和到账，自动算出实际汇率；填了转出，用你填的汇率或者默认汇率算出到账。", size = 12.sp, weight = FontWeight.Medium)
+                DateRow(date) { picking = true }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label("备注", modifier = Modifier.width(56.dp))
                     GlassField(note, { note = it }, "比如 汇款回国", Modifier.weight(1f))
                 }
             }
             Box(Modifier.padding(16.dp).navigationBarsPadding()) {
-                CtaButton("记下转账") {
+                CtaButton(if (e != null) "保存" else "记下转账") {
                     val f = Money.parse(tFrom) ?: 0
                     val t = if (cross) Money.parse(tTo) ?: 0 else f
                     when {
@@ -386,13 +463,41 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                         f <= 0 -> toast.show("先填转出金额")
                         t <= 0 -> toast.show("再填到账金额或者汇率")
                         else -> {
-                            vm.saveTransfer(from, to, f, t, if (cross) TransferMath.impliedRate(f, from.currency, t, to.currency) else null, note)
-                            toast.show("已记下：${from.name} ${Money.format(f, from.currency)} → ${to.name} ${Money.format(t, to.currency)}")
+                            vm.saveTransfer(from, to, f, t, if (cross) TransferMath.impliedRate(f, from.currency, t, to.currency) else null, note, time, e)
+                            toast.show((if (e != null) "改好了：" else "已记下：") + "${from.name} ${Money.format(f, from.currency)} → ${to.name} ${Money.format(t, to.currency)}")
                             onClose()
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+private val weekdayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+/** 「今天 10月31日」「昨天 10月30日」「10月28日 周三」 */
+fun dayText(date: LocalDate, today: LocalDate = LocalDate.now()): String {
+    val md = "${date.monthValue}月${date.dayOfMonth}日"
+    val withYear = if (date.year != today.year) "${date.year}年$md" else md
+    return when (date) {
+        today -> "今天 $md"
+        today.minusDays(1) -> "昨天 $md"
+        else -> withYear + " " + weekdayNames[date.dayOfWeek.value - 1]
+    }
+}
+
+@Composable
+private fun DateRow(date: LocalDate, onPick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Label("日期", modifier = Modifier.width(56.dp))
+        Row(
+            Modifier.glassControl(RoundedCornerShape(14.dp)).semantics { role = Role.Button }.jelly(onClick = onPick).padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            LineIcon(IconPaths.CALENDAR, Palette.Ink, size = 16.dp)
+            Strong(dayText(date), size = 14.sp)
         }
     }
 }
@@ -440,7 +545,7 @@ fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, 
 }
 
 @Composable
-private fun Keypad(onKey: (String) -> Unit, onDelete: () -> Unit, onAgain: () -> Unit, onDone: () -> Unit) {
+private fun Keypad(onKey: (String) -> Unit, onDelete: () -> Unit, onAgain: (() -> Unit)?, onDone: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -466,14 +571,16 @@ private fun Keypad(onKey: (String) -> Unit, onDelete: () -> Unit, onAgain: () ->
                 Modifier.fillMaxWidth().height(50.dp).glassControl(RoundedCornerShape(18.dp)).semantics { contentDescription = "删除" }.jelly(onClick = onDelete),
                 contentAlignment = Alignment.Center,
             ) { LineIcon(IconPaths.DELETE, Palette.Ink, size = 24.dp) }
+            if (onAgain != null) {
+                Box(
+                    Modifier.fillMaxWidth().height(50.dp).glassControl(RoundedCornerShape(18.dp)).jelly(onClick = onAgain),
+                    contentAlignment = Alignment.Center,
+                ) { Strong("再记", size = 14.sp) }
+            }
             Box(
-                Modifier.fillMaxWidth().height(50.dp).glassControl(RoundedCornerShape(18.dp)).jelly(onClick = onAgain),
+                Modifier.fillMaxWidth().height(if (onAgain != null) 108.dp else 166.dp).tinted(RoundedCornerShape(18.dp), Palette.Cta).jelly(onClick = onDone),
                 contentAlignment = Alignment.Center,
-            ) { Strong("再记", size = 14.sp) }
-            Box(
-                Modifier.fillMaxWidth().height(108.dp).tinted(RoundedCornerShape(18.dp), Palette.Cta).jelly(onClick = onDone),
-                contentAlignment = Alignment.Center,
-            ) { Strong("完成", size = 17.sp, color = Color.White) }
+            ) { Strong(if (onAgain != null) "完成" else "保存", size = 17.sp, color = Color.White) }
         }
     }
 }

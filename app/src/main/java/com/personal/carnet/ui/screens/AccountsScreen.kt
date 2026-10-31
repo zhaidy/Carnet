@@ -50,7 +50,7 @@ import com.personal.carnet.ui.glass.holo
 import com.personal.carnet.ui.glass.jelly
 
 @Composable
-fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxRate) -> Unit) {
+fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxRate) -> Unit, onEdit: (AccountView) -> Unit = {}) {
     val toast = LocalToast.current
     var editingRate by rememberSaveable { mutableStateOf(false) }
     var rateText by rememberSaveable { mutableStateOf("") }
@@ -112,12 +112,12 @@ fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxR
                 }
             }
         }
-        items(snapshot.accounts, key = { it.account.id }) { view -> AccountCard(view, snapshot.rate) }
+        items(snapshot.accounts, key = { it.account.id }) { view -> AccountCard(view, snapshot.rate) { onEdit(view) } }
     }
 }
 
 @Composable
-private fun AccountCard(view: AccountView, rate: FxRate) {
+private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
     val a = view.account
     val credit = a.type == AccountType.CREDIT
     val icon = when (a.type) {
@@ -128,7 +128,7 @@ private fun AccountCard(view: AccountView, rate: FxRate) {
     }
     val shape = RoundedCornerShape(26.dp)
     Column(
-        Modifier.fillMaxWidth().then(if (credit) Modifier.holo(shape) else Modifier.glass(shape)).padding(16.dp),
+        Modifier.fillMaxWidth().then(if (credit) Modifier.holo(shape) else Modifier.glass(shape)).jelly(onClick = onClick).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

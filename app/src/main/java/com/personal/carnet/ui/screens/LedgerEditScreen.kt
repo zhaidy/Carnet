@@ -21,7 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,20 +61,27 @@ import java.time.LocalDate
 
 private enum class Preset(val label: String) { TRIP("旅行"), RENT("合租"), MEAL("聚餐"), BLANK("空白") }
 
+/** 新建账本；editing 不是 null 时是改这个账本（货币不能改） */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
+fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = null) {
     val toast = LocalToast.current
+    val old = editing
     var preset by rememberSaveable { mutableStateOf(Preset.TRIP) }
-    var name by rememberSaveable { mutableStateOf("回国旅行") }
-    var currency by rememberSaveable { mutableStateOf(Currency.CNY) }
-    var withHer by rememberSaveable { mutableStateOf(true) }
-    var ratio by rememberSaveable { mutableStateOf(false) }
-    var myPercent by rememberSaveable { mutableIntStateOf(50) }
-    var mode by rememberSaveable { mutableStateOf(SettleMode.DATE) }
-    var day by rememberSaveable { mutableIntStateOf(31) }
-    var epochDay by rememberSaveable { mutableStateOf<Long?>(LocalDate.now().plusMonths(1).toEpochDay()) }
+    var name by rememberSaveable { mutableStateOf(old?.name ?: "回国旅行") }
+    var currency by rememberSaveable { mutableStateOf(if (old != null) old.currency else Currency.CNY) }
+    var withHer by rememberSaveable { mutableStateOf(old?.shared ?: true) }
+    var ratio by rememberSaveable { mutableStateOf(old != null && old.myPercent != 50) }
+    var myPercent by rememberSaveable { mutableIntStateOf(old?.myPercent ?: 50) }
+    var mode by rememberSaveable { mutableStateOf(old?.settleMode ?: SettleMode.DATE) }
+    var day by rememberSaveable { mutableIntStateOf(old?.settleDay ?: 31) }
+    var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var deletable by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    if (old != null) LaunchedEffect(old.id) { deletable = vm.ledgerDeletable(old.id) }
+    val currencyLabel = currency?.label ?: "混币，按新币统计"
 
     fun applyPreset(p: Preset) {
         preset = p
@@ -114,17 +124,17 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader("新建账本", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改账本" else "新建账本", IconPaths.CLOSE, onBack = onDone)
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ChipRow(Preset.entries.map { it to it.label }, preset, "用来") { applyPreset(it) }
+            if (old == null) ChipRow(Preset.entries.map { it to it.label }, preset, "用来") { applyPreset(it) }
 
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Strong(name.ifBlank { "新账本" }, size = 20.sp, modifier = Modifier.weight(1f))
-                    Label(currency.symbol + " " + currency.label, weight = FontWeight.Bold)
+                    Label(currency?.let { it.symbol + " " + it.label } ?: currencyLabel, weight = FontWeight.Bold)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(width = if (withHer) 50.dp else 32.dp, height = 32.dp)) {
@@ -141,12 +151,20 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                         Label("名称", modifier = Modifier.width(56.dp))
                         GlassField(name, { name = it }, "比如 回国旅行", Modifier.weight(1f))
                     }
-                    ChipRow(Currency.entries.map { it to it.chip() }, currency, "账本货币") { currency = it }
-                    val other = if (currency == Currency.CNY) "新币卡" else "支付宝、微信"
-                    Label(
-                        "这个账本按${currency.label}记、按${currency.label}结。用${other}付的，按默认汇率 1 S$ = ¥${FxRate.format(rate.cnyPerSgd)} 换算；每一笔还能单独改汇率。",
-                        size = 12.sp, weight = FontWeight.Medium,
-                    )
+                    if (old == null) {
+                        ChipRow(Currency.entries.map { it to it.chip() }, currency, "账本货币") { currency = it }
+                        val c = currency ?: MainCurrency
+                        val other = if (c == Currency.CNY) "新币卡" else "支付宝、微信"
+                        Label(
+                            "这个账本按${c.label}记、按${c.label}结。用${other}付的，按默认汇率 1 S$ = ¥${FxRate.format(rate.cnyPerSgd)} 换算；每一笔还能单独改汇率。",
+                            size = 12.sp, weight = FontWeight.Medium,
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Label("账本货币", modifier = Modifier.width(56.dp))
+                            Label("$currencyLabel · 记过账后不能改", size = 13.sp, weight = FontWeight.Medium)
+                        }
+                    }
                 }
             }
 
@@ -157,7 +175,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                             Strong("和她一起", size = 14.sp)
                             Label(if (withHer) "要 AA 的账本" else "只有你自己", size = 12.sp, weight = FontWeight.Medium)
                         }
-                        GlassSwitch(withHer, "和她一起") { withHer = it }
+                        if (old?.syncCode == null) GlassSwitch(withHer, "和她一起") { withHer = it }
                     }
                     if (withHer) {
                         ChipRow(listOf(false to "平分", true to "按比例"), ratio, "怎么分") { ratio = it }
@@ -196,10 +214,61 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                 }
             }
         }
-        Box(Modifier.padding(16.dp).navigationBarsPadding()) {
-            CtaButton("建好账本") {
+        if (old?.syncCode != null) {
+            Label("在和她同步：这里改的只改你这边，她那边要她自己改。", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 20.dp))
+        }
+        if (old != null && confirmDelete) {
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                GlassCard(padding = 14.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!deletable) {
+                            Strong("这个账本删不了")
+                            Label("里面还有账，或者固定收支记到这里，或者这是最后一个个人账本。", size = 12.sp, weight = FontWeight.Medium)
+                        } else {
+                            Strong("删掉「${old.name}」？")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
+                                        scope.launch {
+                                            if (vm.deleteLedger(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
+                                            else { deletable = false; toast.show("这个账本删不了") }
+                                        }
+                                    }.padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
+                                Box(
+                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) { Strong("算了", size = 14.sp) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(Modifier.padding(16.dp).navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (old != null) {
+                Box(
+                    Modifier.glassControl(RoundedCornerShape(22.dp)).jelly { confirmDelete = !confirmDelete }.padding(horizontal = 18.dp, vertical = 18.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Strong("删除", size = 15.sp, color = Palette.Rose) }
+            }
+            CtaButton(if (old != null) "保存" else "建好账本", Modifier.weight(1f)) {
                 if (name.isBlank()) {
                     toast.show("先给账本起个名字")
+                } else if (old != null) {
+                    vm.updateLedger(
+                        old.copy(
+                            name = name.trim(),
+                            shared = withHer,
+                            myPercent = if (withHer && ratio) myPercent else 50,
+                            settleMode = mode,
+                            settleDay = day,
+                            settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,
+                        ),
+                    )
+                    toast.show("改好了「${name.trim()}」")
+                    onDone()
                 } else {
                     vm.addLedger(
                         Ledger(
@@ -212,7 +281,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit) {
                             settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,
                         ),
                     )
-                    toast.show("已建好「${name.trim()}」· 按${currency.label}记账")
+                    toast.show("已建好「${name.trim()}」· 按${currencyLabel}记账")
                     onDone()
                 }
             }

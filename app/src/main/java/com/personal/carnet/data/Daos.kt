@@ -101,6 +101,27 @@ interface CarnetDao {
     @Query("DELETE FROM recurring_rules WHERE id = :id")
     suspend fun deleteRule(id: Long)
 
+    @Query("SELECT COUNT(*) FROM entries WHERE accountId = :id OR toAccountId = :id")
+    suspend fun entriesUsingAccount(id: Long): Int
+
+    @Query("SELECT COUNT(*) FROM recurring_rules WHERE accountId = :id OR toAccountId = :id")
+    suspend fun rulesUsingAccount(id: Long): Int
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteAccount(id: Long)
+
+    @Query("SELECT COUNT(*) FROM entries WHERE ledgerId = :id")
+    suspend fun entriesInLedger(id: Long): Int
+
+    @Query("SELECT COUNT(*) FROM recurring_rules WHERE ledgerId = :id")
+    suspend fun rulesUsingLedger(id: Long): Int
+
+    @Query("DELETE FROM ledgers WHERE id = :id")
+    suspend fun deleteLedger(id: Long)
+
+    @Query("DELETE FROM settlements WHERE ledgerId = :id")
+    suspend fun deleteSettlementsIn(id: Long)
+
     @Query("DELETE FROM settlements WHERE id = :id")
     suspend fun deleteSettlement(id: Long)
 }

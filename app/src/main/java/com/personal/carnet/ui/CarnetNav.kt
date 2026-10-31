@@ -56,9 +56,18 @@ import com.personal.carnet.ui.screens.AutoScreen
 import com.personal.carnet.ui.screens.RecurringEditScreen
 import com.personal.carnet.ui.screens.RecurringScreen
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.personal.carnet.ui.screens.BillsScreen
 
 private object Routes {
     const val HOME = "home"
+    const val BILLS = "bills"
+    const val EDIT_ENTRY = "entry/{id}"
+    const val EDIT_ACCOUNT = "account/edit/{id}"
+    const val EDIT_LEDGER = "ledger/edit/{id}"
+    const val EDIT_RULE = "recurring/edit/{id}"
     const val LEDGERS = "ledgers"
     const val ACCOUNTS = "accounts"
     const val ADD = "add"
@@ -75,6 +84,7 @@ private data class Tab(val route: String, val label: String, val icon: String)
 
 private val tabs = listOf(
     Tab(Routes.HOME, "总览", IconPaths.HOME),
+    Tab(Routes.BILLS, "账单", IconPaths.LIST),
     Tab(Routes.LEDGERS, "账本", IconPaths.BOOK),
     Tab(Routes.ACCOUNTS, "账户", IconPaths.CARD),
     Tab(Routes.ME, "我的", IconPaths.PERSON),
@@ -112,18 +122,53 @@ fun CarnetRoot(vm: MainViewModel) {
                             onOpenRecurring = { nav.navigate(Routes.RECURRING) },
                             onConfirm = vm::confirm,
                             onSkip = vm::skip,
-                            onDelete = { vm.deleteEntry(it.id) },
+                            onOpenEntry = { nav.navigate("entry/${it.id}") },
+                            onOpenBills = { nav.switchTab(Routes.BILLS) },
                             recentAuto = autoConfig.recent,
                             onShareAuto = vm::shareAuto,
                             onUndoAuto = vm::undoAuto,
                             onKeepAuto = vm::keepAuto,
                         )
                     }
+                    composable(Routes.BILLS) {
+                        BillsScreen(snap, onOpen = { nav.navigate("entry/${it.id}") })
+                    }
                     composable(Routes.LEDGERS) {
-                        LedgersScreen(snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) })
+                        LedgersScreen(
+                            snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) },
+                            onEdit = { nav.navigate("ledger/edit/${it.ledger.id}") },
+                        )
                     }
                     composable(Routes.ACCOUNTS) {
-                        AccountsScreen(snap, onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) }, onSetRate = vm::setDefaultRate)
+                        AccountsScreen(
+                            snap, onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) }, onSetRate = vm::setDefaultRate,
+                            onEdit = { nav.navigate("account/edit/${it.account.id}") },
+                        )
+                    }
+                    // 改东西：进来时记下当时的那一份，删掉后不会因为找不到而再退一层
+                    composable(Routes.EDIT_ENTRY, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        val id = back.arguments?.getLong("id")
+                        val entry = remember(id) { snap.entries.firstOrNull { it.id == id } }
+                        if (entry == null) LaunchedEffect(Unit) { nav.popBackStack() }
+                        else AddScreen(snap, vm, onClose = { nav.popBackStack() }, onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) }, editing = entry)
+                    }
+                    composable(Routes.EDIT_ACCOUNT, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        val id = back.arguments?.getLong("id")
+                        val view = remember(id) { snap.accounts.firstOrNull { it.account.id == id } }
+                        if (view == null) LaunchedEffect(Unit) { nav.popBackStack() }
+                        else AccountEditScreen(vm, onDone = { nav.popBackStack() }, editing = view)
+                    }
+                    composable(Routes.EDIT_LEDGER, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        val id = back.arguments?.getLong("id")
+                        val ledger = remember(id) { snap.ledgers.firstOrNull { it.ledger.id == id }?.ledger }
+                        if (ledger == null) LaunchedEffect(Unit) { nav.popBackStack() }
+                        else LedgerEditScreen(vm, onDone = { nav.popBackStack() }, editing = ledger)
+                    }
+                    composable(Routes.EDIT_RULE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        val id = back.arguments?.getLong("id")
+                        val rule = remember(id) { snap.rules.firstOrNull { it.id == id } }
+                        if (rule == null) LaunchedEffect(Unit) { nav.popBackStack() }
+                        else RecurringEditScreen(snap, vm, onDone = { nav.popBackStack() }, editing = rule)
                     }
                     composable(Routes.ADD) {
                         AddScreen(snap, vm, onClose = { nav.popBackStack() }, onNewAccount = { nav.navigate(Routes.NEW_ACCOUNT) })
@@ -150,6 +195,7 @@ fun CarnetRoot(vm: MainViewModel) {
                             onNew = { nav.navigate(Routes.NEW_RULE) },
                             onSetActive = { rule, active -> vm.setRuleActive(rule, active) },
                             onDelete = { vm.deleteRule(it.id) },
+                            onEdit = { nav.navigate("recurring/edit/${it.id}") },
                         )
                     }
                     composable(Routes.NEW_RULE) { RecurringEditScreen(snap, vm, onDone = { nav.popBackStack() }) }

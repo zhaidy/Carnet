@@ -73,7 +73,8 @@ fun HomeScreen(
     onOpenRecurring: () -> Unit,
     onConfirm: (Occurrence) -> Unit,
     onSkip: (Occurrence) -> Unit,
-    onDelete: (Entry) -> Unit,
+    onOpenEntry: (Entry) -> Unit,
+    onOpenBills: () -> Unit,
     recentAuto: List<Long> = emptyList(),
     onShareAuto: (Long) -> Unit = {},
     onUndoAuto: (Long) -> Unit = {},
@@ -81,11 +82,10 @@ fun HomeScreen(
 ) {
     val toast = LocalToast.current
     var ledgerFilter by rememberSaveable { mutableStateOf<Long?>(null) }
-    var selected by rememberSaveable { mutableStateOf<Long?>(null) }
     val accounts = remember(snapshot) { snapshot.accounts.associate { it.account.id to it.account } }
     val ledgers = remember(snapshot) { snapshot.ledgers.associate { it.ledger.id to it.ledger } }
     val entries = remember(snapshot, ledgerFilter) {
-        snapshot.entries.filter { ledgerFilter == null || it.ledgerId == ledgerFilter }.take(80)
+        snapshot.entries.filter { ledgerFilter == null || it.ledgerId == ledgerFilter }.take(30)
     }
     val plan = snapshot.plan
 
@@ -130,7 +130,7 @@ fun HomeScreen(
                 val shared = ledgers[entry.ledgerId]?.shared == true
                 val hasShared = snapshot.ledgers.any { it.ledger.shared }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    EntryRow(entry.line(accounts, ledgers))
+                    EntryRow(entry.line(accounts, ledgers), onClick = { onOpenEntry(entry) })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!shared && hasShared && entry.kind == com.personal.carnet.data.EntryKind.EXPENSE) {
                             Box(Modifier.weight(1f).tinted(RoundedCornerShape(18.dp), Palette.Cta).jelly {
@@ -184,30 +184,17 @@ fun HomeScreen(
                 selected = ledgerFilter,
             ) { ledgerFilter = it }
         }
-        item { Strong("最近", modifier = Modifier.padding(start = 4.dp)) }
+        item {
+            Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Strong("最近", modifier = Modifier.weight(1f))
+                Box(Modifier.jelly(onClick = onOpenBills).padding(6.dp)) { Strong("全部账单", size = 13.sp, color = Palette.Violet) }
+            }
+        }
         if (entries.isEmpty()) {
             item { GlassCard { Label("还没有记账。点右下角的 ＋ 记第一笔。", weight = FontWeight.Medium) } }
         }
         items(entries, key = { it.id }) { entry ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                EntryRow(entry.line(accounts, ledgers), onClick = { selected = if (selected == entry.id) null else entry.id })
-                if (selected == entry.id) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(
-                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
-                                onDelete(entry)
-                                selected = null
-                                toast.show("已删掉这一笔")
-                            }.padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) { Strong("删掉这一笔", size = 14.sp, color = Palette.Rose) }
-                        Box(
-                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { selected = null }.padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) { Strong("算了", size = 14.sp) }
-                    }
-                }
-            }
+            EntryRow(entry.line(accounts, ledgers), onClick = { onOpenEntry(entry) })
         }
     }
 }

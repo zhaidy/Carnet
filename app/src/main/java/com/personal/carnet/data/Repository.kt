@@ -63,6 +63,56 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         onEntryDeleted?.invoke(entry, ledger)
     }
 
+    /** 本机改了一笔同步过的账后通知同步 */
+    var onEntryUpdated: ((Entry, Ledger?) -> Unit)? = null
+
+    /**
+     * 改一笔账。换了账本的话，原来账本那边当作删掉（云端留删除标记），新账本那边当作新记的；
+     * 没换账本就原样更新，同步过的整笔重新传。
+     */
+    suspend fun updateEntry(updated: Entry) {
+        val old = dao.entry(updated.id) ?: return
+        val ledgers = dao.ledgersNow()
+        if (old.ledgerId != updated.ledgerId) {
+            dao.update(updated.copy(syncId = null))
+            if (old.syncId != null) onEntryDeleted?.invoke(old, ledgers.firstOrNull { it.id == old.ledgerId })
+        } else {
+            val entry = updated.copy(syncId = old.syncId)
+            dao.update(entry)
+            if (entry.syncId != null) onEntryUpdated?.invoke(entry, ledgers.firstOrNull { it.id == entry.ledgerId })
+        }
+    }
+
+    suspend fun updateAccount(account: Account) = dao.update(account)
+
+    /** 有账、固定收支用到的账户删不了，返回 false */
+    suspend fun deleteAccount(id: Long): Boolean {
+        if (dao.entriesUsingAccount(id) > 0 || dao.rulesUsingAccount(id) > 0) return false
+        dao.deleteAccount(id)
+        return true
+    }
+
+    suspend fun accountInUse(id: Long): Boolean = dao.entriesUsingAccount(id) > 0 || dao.rulesUsingAccount(id) > 0
+
+    suspend fun updateLedger(ledger: Ledger) = dao.update(ledger)
+
+    /** 账本里还有账、固定收支记到这里、或者是最后一个个人账本时删不了 */
+    suspend fun ledgerDeletable(id: Long): Boolean {
+        val ledgers = dao.ledgersNow()
+        val ledger = ledgers.firstOrNull { it.id == id } ?: return false
+        if (!ledger.shared && ledgers.count { !it.shared } <= 1) return false
+        return dao.entriesInLedger(id) == 0 && dao.rulesUsingLedger(id) == 0
+    }
+
+    suspend fun deleteLedger(id: Long): Boolean {
+        if (!ledgerDeletable(id)) return false
+        dao.deleteSettlementsIn(id)
+        dao.deleteLedger(id)
+        return true
+    }
+
+    suspend fun updateRule(rule: RecurringRule) = dao.update(rule)
+
     suspend fun snapshotNow(): Snapshot = snapshot.first()
 
     /** 前后 3 分钟内同一个账户同样金额的，当作同一笔（钱包有时会重发通知） */
@@ -75,7 +125,7 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         val ledger = dao.ledgersNow().firstOrNull { it.id == ledgerId } ?: return
         val rate = entry.rate?.let { FxRate(it) } ?: prefs.defaultRate.value
         val ledgerCurrency = ledger.currency ?: com.personal.carnet.domain.MainCurrency
-        dao.update(entry.copy(ledgerId = ledger.id, ledgerCents = rate.convert(entry.amountCents, entry.currency, ledgerCurrency)))
+        updateEntry(entry.copy(ledgerId = ledger.id, ledgerCents = rate.convert(entry.amountCents, entry.currency, ledgerCurrency)))
     }
 
     /** 自动记账「算我们俩的」：放进第一个共用账本 */

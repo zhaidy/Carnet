@@ -54,7 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
-fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit) {
+fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit, onEdit: (LedgerView) -> Unit = {}) {
     var confirming by rememberSaveable { mutableStateOf<Long?>(null) }
     var joining by rememberSaveable { mutableStateOf(false) }
     var code by rememberSaveable { mutableStateOf("") }
@@ -118,6 +118,7 @@ fun LedgersScreen(snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit
                     }
                 },
                 onLeave = { vm.leaveSync(view.ledger) },
+                onEdit = { onEdit(view) },
                 confirming = confirming == view.ledger.id,
                 onAskSettle = { confirming = view.ledger.id },
                 onCancel = { confirming = null },
@@ -138,6 +139,7 @@ private fun LedgerCard(
     syncStatus: SyncStatus?,
     onInvite: () -> Unit,
     onLeave: () -> Unit,
+    onEdit: () -> Unit,
     confirming: Boolean,
     onAskSettle: () -> Unit,
     onCancel: () -> Unit,
@@ -145,7 +147,7 @@ private fun LedgerCard(
 ) {
     val l = view.ledger
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.jelly(onClick = onEdit), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (l.shared) {
                 Box(Modifier.size(width = 50.dp, height = 34.dp)) {
                     Avatar("我", her = false)
