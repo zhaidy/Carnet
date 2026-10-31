@@ -28,6 +28,7 @@ object IconPaths {
     const val CASH = "M3 7h18v10H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 10v4M18 10v4"
     const val WALLET = "M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 7l11-3v3M16 13.5h1"
     const val REPEAT = "M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"
+    const val IMPORT = "M12 4v11M7 10l5 5 5-5M5 20h14"
     const val PERSON = "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"
     const val SPARKLE ="M12 2c.7 6 3 8.3 9 9-6 .7-8.3 3-9 9-.7-6-3-8.3-9-9 6-.7 8.3-3 9-9z"
 }

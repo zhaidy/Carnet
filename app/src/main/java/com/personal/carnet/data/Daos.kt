@@ -35,6 +35,9 @@ interface CarnetDao {
     @Insert
     suspend fun insert(entry: Entry): Long
 
+    @Insert
+    suspend fun insertAll(entries: List<Entry>)
+
     @Query("DELETE FROM entries WHERE id = :id")
     suspend fun deleteEntry(id: Long)
 

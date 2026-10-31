@@ -7,6 +7,9 @@ import com.personal.carnet.domain.FxRate
 import com.personal.carnet.domain.Occurrence
 import com.personal.carnet.domain.Schedule
 import com.personal.carnet.domain.Snapshot
+import com.personal.carnet.importer.AccountChoice
+import com.personal.carnet.importer.ImportOutcome
+import com.personal.carnet.importer.ImportedRow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -91,6 +94,69 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
     suspend fun skip(occurrence: Occurrence) = dueLock.withLock {
         val rule = occurrence.rule
         dao.update(rule.copy(lastDoneEpochDay = maxOf(rule.lastDoneEpochDay, occurrence.date.toEpochDay())))
+    }
+
+    /**
+     * 导入历史账。导进来的是以前的账，所以账户「现在的余额」不变：把这些账对余额的影响从建账户时的余额里扣回去。
+     * 同一个账本里时间、金额都一样的算重复，跳过。settled 时把这些账标成已两清。
+     */
+    suspend fun importRows(
+        rows: List<ImportedRow>,
+        choices: Map<String, AccountChoice>,
+        ledgerId: Long,
+        settled: Boolean,
+    ): ImportOutcome = dueLock.withLock {
+        val ledgers = dao.ledgersNow()
+        val ledger = ledgers.first { it.id == ledgerId }
+        val personal = ledgers.filter { !it.shared }.minByOrNull { it.createdAt } ?: ledger
+        val rate = prefs.defaultRate.value
+        val existing = dao.entriesNow().map { Triple(it.timeMillis, it.amountCents, it.ledgerId) }.toHashSet()
+
+        val accountIdFor = HashMap<String, Long?>()
+        for ((name, choice) in choices) {
+            accountIdFor[name] = when (choice) {
+                is AccountChoice.Existing -> choice.accountId
+                AccountChoice.Hers -> null
+                is AccountChoice.Create -> {
+                    val currency = rows.firstOrNull { it.account == name }?.currency ?: Currency.SGD
+                    dao.insert(
+                        Account(
+                            name = name, type = choice.type, currency = currency, openingCents = 0,
+                            inCashflow = choice.type != AccountType.CREDIT && currency == com.personal.carnet.domain.MainCurrency,
+                        ),
+                    )
+                }
+            }
+        }
+        val accounts = dao.accountsNow().associateBy { it.id }
+
+        var duplicates = 0
+        val entries = rows.mapNotNull { row ->
+            val target = if (row.kind == EntryKind.INCOME) personal else ledger
+            if (!existing.add(Triple(row.timeMillis, row.cents, target.id))) { duplicates++; return@mapNotNull null }
+            val hers = choices[row.account] == AccountChoice.Hers
+            EntryFactory.spending(
+                kind = row.kind, ledger = target, account = accountIdFor[row.account]?.let(accounts::get),
+                payer = if (hers) Payer.HER else Payer.ME, category = row.category, note = row.note,
+                amountCents = row.cents, currency = row.currency, rate = rate, timeMillis = row.timeMillis,
+            )
+        }
+
+        // 现在的余额不变
+        for (account in accounts.values) {
+            val delta = entries.sumOf { Books.delta(it, account.id) }
+            if (delta != 0L) dao.update(account.copy(openingCents = account.openingCents - delta))
+        }
+        dao.insertAll(entries)
+
+        if (settled && ledger.shared && entries.isNotEmpty()) {
+            val shared = entries.filter { it.ledgerId == ledger.id && it.kind == EntryKind.EXPENSE }
+            val balance = com.personal.carnet.domain.Split.balance(
+                shared.map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == Payer.ME) }, ledger.myPercent,
+            )
+            dao.insert(Settlement(ledgerId = ledger.id, timeMillis = entries.maxOf { it.timeMillis }, cents = balance))
+        }
+        ImportOutcome(entries.size, duplicates)
     }
 
     private class Context(
