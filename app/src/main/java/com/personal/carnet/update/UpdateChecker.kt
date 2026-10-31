@@ -25,17 +25,39 @@ data class UpdateInfo(val build: Long, val apkUrl: String, val changes: List<Str
 class UpdateChecker(private val context: Context) {
     private val client = OkHttpClient()
 
-    /** 有更新返回 [UpdateInfo]，已是最新返回 null；网络出错会抛异常 */
+    /** 不跟跳转：读 releases/latest 跳到哪个 tag */
+    private val noRedirect = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
+    /**
+     * 有更新返回 [UpdateInfo]，已是最新返回 null；网络出错会抛异常。
+     * 先用 GitHub API（能拿到每个版本的更新说明）；API 不登录每个网络出口每小时只能查 60 次，
+     * 手机流量很多人共用出口，常被限流（403）。这时退回读网页上 releases/latest 跳到哪个 build，没有更新说明但能更新。
+     */
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("https://api.github.com/repos/$REPO/releases?per_page=30")
-            .header("Accept", "application/vnd.github+json")
-            .build()
-        val body = client.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code}")
-            resp.body.string()
+        val current = currentBuild()
+        val api = runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/releases?per_page=30")
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "Carnet")
+                .build()
+            client.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) error("HTTP ${resp.code}")
+                resp.body.string()
+            }
         }
-        pickUpdate(body, currentBuild())
+        val body = api.getOrNull()
+        if (body != null) {
+            pickUpdate(body, current)
+        } else {
+            val latest = runCatching { latestFromWeb() }.getOrNull() ?: throw api.exceptionOrNull()!!
+            if (latest > current) UpdateInfo(latest, apkUrlFor(latest)) else null
+        }
+    }
+
+    private fun latestFromWeb(): Long? {
+        val request = Request.Builder().url("https://github.com/$REPO/releases/latest").header("User-Agent", "Carnet").build()
+        return noRedirect.newCall(request).execute().use { resp -> buildFromLocation(resp.header("Location")) }
     }
 
     /** 下载 APK 到缓存目录；先清掉以前下的包，最多只留一个 */
@@ -114,6 +136,13 @@ class UpdateChecker(private val context: Context) {
 
     companion object {
         const val REPO = "zhaidy/Carnet"
+
+        /** releases/latest 跳到 …/releases/tag/build-24 → 24 */
+        fun buildFromLocation(location: String?): Long? =
+            location?.let { Regex("""/releases/tag/build-(\d+)/?$""").find(it) }?.groupValues?.get(1)?.toLongOrNull()
+
+        /** CI 发的安装包都叫 carnet.apk */
+        fun apkUrlFor(build: Long) = "https://github.com/$REPO/releases/download/build-$build/carnet.apk"
 
         /** 从 Releases 列表里挑出比当前新的最新一个，把中间每个版本的更新说明都拼起来，跳过好几个版本也不漏 */
         fun pickUpdate(releasesJson: String, current: Long): UpdateInfo? {
