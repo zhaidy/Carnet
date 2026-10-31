@@ -28,6 +28,8 @@ data class Account(
     /** 算不算进「发薪前还能花」 */
     val inCashflow: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
+    /** 信用卡每月几号出账单；设了的话，还卡只还到账单日为止欠的 */
+    val statementDay: Int? = null,
 )
 
 enum class SettleMode { MONTHLY, DATE, MANUAL }

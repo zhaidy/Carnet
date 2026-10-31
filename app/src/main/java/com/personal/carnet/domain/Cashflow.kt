@@ -2,10 +2,13 @@ package com.personal.carnet.domain
 
 import com.personal.carnet.data.Account
 import com.personal.carnet.data.AccountType
+import com.personal.carnet.data.Entry
 import com.personal.carnet.data.Ledger
 import com.personal.carnet.data.RecurringRule
 import com.personal.carnet.data.RuleKind
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
 
 /** 一次将要发生（或该确认还没确认）的固定收支 */
 data class Occurrence(
@@ -39,10 +42,56 @@ object Cashflow {
     fun cardOwed(rule: RecurringRule, balances: Map<Long, Long>): Long =
         (-(balances[rule.toAccountId] ?: 0L)).coerceAtLeast(0)
 
-    fun occurrence(rule: RecurringRule, date: LocalDate, accounts: Map<Long, Account>, balances: Map<Long, Long>): Occurrence =
+    /** 在 [due] 那天还的这一期，账单日是哪天：[due] 之前最近的那个账单日；没设账单日是 null */
+    fun statementDate(card: Account, due: LocalDate): LocalDate? {
+        val day = card.statementDay ?: return null
+        var month = YearMonth.from(due)
+        repeat(3) {
+            val date = month.atDay(day.coerceIn(1, month.lengthOfMonth()))
+            if (date.isBefore(due)) return date
+            month = month.minusMonths(1)
+        }
+        return null
+    }
+
+    /**
+     * 在 [due] 那天要还多少：
+     * - 设了账单日、账单已经出了：账单日那天结束时欠的，减掉账单日之后已经还进卡里的
+     * - 没设账单日，或者账单还没出：按卡上现在欠的全部估
+     */
+    fun cardDue(
+        rule: RecurringRule, due: LocalDate, card: Account?, balances: Map<Long, Long>, entries: List<Entry>,
+        today: LocalDate, zone: ZoneId = ZoneId.systemDefault(),
+    ): Long {
+        val owedNow = cardOwed(rule, balances)
+        if (card == null) return owedNow
+        val statement = statementDate(card, due) ?: return owedNow
+        if (!statement.isBefore(today)) return owedNow
+        val cut = statement.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        var atCut = card.openingCents
+        var paidAfter = 0L
+        for (e in entries) {
+            val d = Books.delta(e, card.id)
+            if (d == 0L) continue
+            if (e.timeMillis < cut) atCut += d else if (d > 0) paidAfter += d
+        }
+        return (-atCut - paidAfter).coerceIn(0, owedNow)
+    }
+
+    /** 账单已经出了的那一期，金额是准的 */
+    fun cardDueKnown(card: Account?, due: LocalDate, today: LocalDate): Boolean =
+        card?.let { statementDate(it, due) }?.isBefore(today) == true
+
+    fun occurrence(
+        rule: RecurringRule, date: LocalDate, accounts: Map<Long, Account>, balances: Map<Long, Long>,
+        entries: List<Entry> = emptyList(), today: LocalDate = LocalDate.now(),
+    ): Occurrence =
         if (rule.kind == RuleKind.CARD_PAYMENT) {
             val card = accounts[rule.toAccountId]
-            Occurrence(rule, date, cardOwed(rule, balances), card?.currency ?: rule.currency, estimate = true)
+            Occurrence(
+                rule, date, cardDue(rule, date, card, balances, entries, today), card?.currency ?: rule.currency,
+                estimate = !cardDueKnown(card, date, today),
+            )
         } else {
             Occurrence(rule, date, rule.amountCents, rule.currency, estimate = rule.approximate)
         }
@@ -54,10 +103,11 @@ object Cashflow {
         ledgers: List<Ledger>,
         rate: FxRate,
         today: LocalDate,
+        entries: List<Entry> = emptyList(),
     ): Plan {
         val active = rules.filter { it.active }
         val byId = accounts.associateBy { it.id }
-        fun occ(rule: RecurringRule, d: LocalDate) = occurrence(rule, d, byId, balances)
+        fun occ(rule: RecurringRule, d: LocalDate) = occurrence(rule, d, byId, balances, entries, today)
 
         val pending = active.filter { !it.auto }.flatMap { rule ->
             Schedule.occurrences(rule, LocalDate.ofEpochDay(rule.lastDoneEpochDay), today).map { occ(rule, it) }

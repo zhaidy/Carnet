@@ -45,6 +45,32 @@ class MigrationTest {
     }
 
     @Test
+    fun 第四版加的账单日和导出的一样() {
+        val added = CarnetDatabase.MIGRATION_3_4_SQL.map { sql ->
+            val m = Regex("""ALTER TABLE `(\w+)` ADD COLUMN `(\w+)` (\w+)( NOT NULL)?""").find(sql)!!.groupValues
+            Triple(m[1], m[2], m[3] to m[4].isNotEmpty())
+        }
+        for (table in listOf("accounts", "ledgers", "entries", "settlements", "recurring_rules")) {
+            val expected = columns(4, table)
+            val migrated = columns(3, table) + added.filter { it.first == table }.associate { it.second to it.third }
+            assertEquals(table, expected, migrated)
+        }
+    }
+
+    private fun columns(version: Int, table: String): Map<String, Pair<String, Boolean>> {
+        val json = JSONObject(File("schemas/com.personal.carnet.data.CarnetDatabase/$version.json").readText())
+        val entities = json.getJSONObject("database").getJSONArray("entities")
+        for (i in 0 until entities.length()) {
+            val e = entities.getJSONObject(i)
+            if (e.getString("tableName") != table) continue
+            val fields = e.getJSONArray("fields")
+            return (0 until fields.length()).map { fields.getJSONObject(it) }
+                .associate { it.getString("columnName") to (it.getString("affinity") to it.optBoolean("notNull")) }
+        }
+        error("没有表 $table")
+    }
+
+    @Test
     fun 第二版加的固定收支表和导出的一样() {
         assertEquals(createSql(2, "recurring_rules"), CarnetDatabase.RECURRING_TABLE_SQL)
     }
