@@ -6,11 +6,23 @@ import java.math.RoundingMode
 /** 共用账本里的一笔开销，金额已经换成账本货币 */
 data class SharedExpense(val cents: Long, val paidByMe: Boolean)
 
+/** 共用账本一段时间里：各自付了多少，各自那份是多少（balance = paidByMe - myShare） */
+data class SplitSummary(val paidByMe: Long, val paidByHer: Long, val myShare: Long, val herShare: Long) {
+    val total: Long get() = paidByMe + paidByHer
+}
+
 /**
  * AA 的账：谁多垫了多少。
  * 结果是正数：你多垫了，她补你这么多就两清；负数：她多垫了，你补她。
  */
 object Split {
+
+    fun summary(expenses: List<SharedExpense>, myPercent: Int): SplitSummary {
+        val me = expenses.filter { it.paidByMe }.sumOf { it.cents }
+        val her = expenses.filter { !it.paidByMe }.sumOf { it.cents }
+        val mine = expenses.sumOf { myShare(it.cents, myPercent) }
+        return SplitSummary(me, her, mine, me + her - mine)
+    }
 
     /** 一笔里你那份；myPercent 是你出的百分比，平分就是 50 */
     fun myShare(cents: Long, myPercent: Int): Long =

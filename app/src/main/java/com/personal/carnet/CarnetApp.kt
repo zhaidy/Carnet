@@ -13,6 +13,12 @@ import com.personal.carnet.update.UpdateChecker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import androidx.glance.appwidget.updateAll
+import com.personal.carnet.widget.CarnetWidget
+import com.personal.carnet.widget.WidgetData
 
 class CarnetApp : Application() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -40,5 +46,12 @@ class CarnetApp : Application() {
     override fun onCreate() {
         super.onCreate()
         sync.start()
+        // 账一变，桌面小组件跟着刷新（显示的文字没变就不刷）
+        appScope.launch {
+            repository.snapshot
+                .map { WidgetData.from(it) }
+                .distinctUntilChanged()
+                .collect { runCatching { CarnetWidget().updateAll(this@CarnetApp) } }
+        }
     }
 }

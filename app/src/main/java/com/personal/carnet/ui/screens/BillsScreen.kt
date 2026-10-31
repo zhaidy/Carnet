@@ -101,7 +101,9 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
     ) {
         item {
             ScreenHeader(initialLedgerId?.let { ledgers[it]?.name } ?: "账单", onBack = onBack) {
-                PillButton(if (calendar) "列表" else "日历", if (calendar) IconPaths.LIST else IconPaths.CALENDAR) { calendar = !calendar }
+                com.personal.carnet.ui.components.RoundGlassButton(
+                    if (calendar) IconPaths.LIST else IconPaths.CALENDAR, if (calendar) "看列表" else "看日历",
+                ) { calendar = !calendar }
                 PillButton(if (extraFilters.isEmpty()) "筛选" else "筛选 · ${extraFilters.size}") { filtersOpen = !filtersOpen }
             }
         }
@@ -171,6 +173,29 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                         Strong(Money.format(result.incomeCents, MainCurrency), size = 17.sp, color = Palette.Teal)
                     }
                 }
+                val shared = ledgerId?.let(ledgers::get)?.takeIf { it.shared }
+                if (shared != null) {
+                    val split = com.personal.carnet.domain.Split.summary(
+                        result.days.flatMap { it.entries }
+                            .filter { it.kind == EntryKind.EXPENSE && it.ledgerId == shared.id }
+                            .map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == com.personal.carnet.data.Payer.ME) },
+                        shared.myPercent,
+                    )
+                    val c = shared.currency ?: MainCurrency
+                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SplitCell("我付了", Money.format(split.paidByMe, c), "我的那份 " + Money.format(split.myShare, c), Modifier.weight(1f))
+                        SplitCell("她付了", Money.format(split.paidByHer, c), "她的那份 " + Money.format(split.herShare, c), Modifier.weight(1f))
+                    }
+                    val diff = split.paidByMe - split.myShare
+                    Label(
+                        when {
+                            diff > 0 -> "这段时间你多垫了 " + Money.format(diff, c)
+                            diff < 0 -> "这段时间她多垫了 " + Money.format(-diff, c)
+                            else -> "这段时间正好一人一半"
+                        } + "（只算这里筛出来的账，结算看账本页）",
+                        size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet,
+                    )
+                }
                 Label(
                     "${result.count} 笔" + (if (extraFilters.isNotEmpty()) " · " + extraFilters.joinToString(" · ") else "") +
                         " · 共用账本按全额算，人民币按记账时的汇率换成新币",
@@ -229,6 +254,15 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                 EntryRow(entry.line(accounts, ledgers), onClick = { onOpen(entry) })
             }
         }
+    }
+}
+
+@Composable
+private fun SplitCell(label: String, value: String, sub: String, modifier: Modifier) {
+    Column(modifier.glassControl(RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Label(label, size = 11.sp)
+        Strong(value, size = 16.sp)
+        Label(sub, size = 11.sp, weight = FontWeight.Medium)
     }
 }
 

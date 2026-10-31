@@ -60,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.personal.carnet.ui.screens.BillsScreen
+import com.personal.carnet.ui.screens.ReconcileScreen
 
 private object Routes {
     const val HOME = "home"
@@ -67,6 +68,7 @@ private object Routes {
     const val LEDGER_BILLS = "bills/ledger/{id}"
     const val EDIT_ENTRY = "entry/{id}"
     const val EDIT_ACCOUNT = "account/edit/{id}"
+    const val RECONCILE = "account/reconcile/{id}"
     const val EDIT_LEDGER = "ledger/edit/{id}"
     const val EDIT_RULE = "recurring/edit/{id}"
     const val LEDGERS = "ledgers"
@@ -92,7 +94,7 @@ private val tabs = listOf(
 )
 
 @Composable
-fun CarnetRoot(vm: MainViewModel) {
+fun CarnetRoot(vm: MainViewModel, openRoute: kotlinx.coroutines.flow.StateFlow<String?>? = null, onRouteOpened: () -> Unit = {}) {
     val nav = rememberNavController()
     val toast = remember { ToastState() }
     val snapshot by vm.snapshot.collectAsState()
@@ -102,6 +104,14 @@ fun CarnetRoot(vm: MainViewModel) {
     LifecycleResumeEffect(Unit) {
         vm.onResume()
         onPauseOrDispose {}
+    }
+    // 小组件点「记一笔」进来：直接打开记账页
+    val pendingRoute = openRoute?.collectAsState()?.value
+    LaunchedEffect(pendingRoute, snapshot != null) {
+        if (pendingRoute == Routes.ADD && snapshot != null) {
+            nav.navigate(Routes.ADD) { launchSingleTop = true }
+            onRouteOpened()
+        }
     }
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
@@ -164,7 +174,16 @@ fun CarnetRoot(vm: MainViewModel) {
                         val id = back.arguments?.getLong("id")
                         val view = remember(id) { snap.accounts.firstOrNull { it.account.id == id } }
                         if (view == null) LaunchedEffect(Unit) { nav.popBackStack() }
-                        else AccountEditScreen(vm, onDone = { nav.popBackStack() }, editing = view)
+                        else AccountEditScreen(
+                            vm, onDone = { nav.popBackStack() }, editing = view,
+                            onReconcile = { nav.navigate("account/reconcile/${view.account.id}") },
+                        )
+                    }
+                    composable(Routes.RECONCILE, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
+                        val id = back.arguments?.getLong("id")
+                        val card = snap.accounts.firstOrNull { it.account.id == id }?.account
+                        if (card == null) LaunchedEffect(Unit) { nav.popBackStack() }
+                        else ReconcileScreen(snap, card, vm, onBack = { nav.popBackStack() }, onOpen = { nav.navigate("entry/${it.id}") })
                     }
                     composable(Routes.EDIT_LEDGER, arguments = listOf(navArgument("id") { type = NavType.LongType })) { back ->
                         val id = back.arguments?.getLong("id")

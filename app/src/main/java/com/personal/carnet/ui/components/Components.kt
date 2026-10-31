@@ -284,7 +284,10 @@ fun ScreenHeader(title: String, backIcon: String? = IconPaths.BACK, onBack: (() 
     ) {
         if (onBack != null && backIcon != null) RoundGlassButton(backIcon, if (backIcon == IconPaths.CLOSE) "关闭" else "返回", onClick = onBack)
         else Spacer(Modifier.width(8.dp))
-        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f))
+        Text(
+            title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
         trailing()
     }
 }

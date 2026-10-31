@@ -145,4 +145,22 @@ class CashflowTest {
         val refund = spend(5, "2026-10-31", 1000).copy(kind = EntryKind.INCOME)
         assertEquals(19107L, Cashflow.owedSince(2, entries + refund, LocalDate.of(2026, 10, 19), zone))
     }
+
+    @Test
+    fun 对账的一期() {
+        // 账单日 19 号，今天 10/31：这期是 (9/19, 10/19]
+        assertEquals(LocalDate.of(2026, 9, 19) to LocalDate.of(2026, 10, 19), Cashflow.statementPeriod(19, today))
+        assertEquals(LocalDate.of(2026, 8, 19) to LocalDate.of(2026, 9, 19), Cashflow.statementPeriod(19, today, back = 1))
+        // 没设账单日：上个自然月
+        assertEquals(LocalDate.of(2026, 9, 30) to LocalDate.of(2026, 10, 31), Cashflow.statementPeriod(null, LocalDate.of(2026, 11, 5)))
+        val entries = listOf(
+            spend(1, "2026-09-19", 1000),
+            spend(2, "2026-09-20", 2000),
+            spend(3, "2026-10-19", 3000),
+            spend(4, "2026-10-20", 4000),
+            repay(5, "2026-10-10", 9999),
+        )
+        val (from, to) = Cashflow.statementPeriod(19, today)
+        assertEquals(listOf(2L, 3L), Cashflow.cardCharges(2, entries, from, to, zone).map { it.id })
+    }
 }

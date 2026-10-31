@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Carnet</string>
+    <string name="widget_description">发薪前还能花多少、这个月花了多少、谁补谁</string>
 </resources>

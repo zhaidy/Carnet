@@ -95,11 +95,34 @@ object Cashflow {
      * 信用卡按账算现在欠多少：[clearedThrough] 那天（含）之前刷的都还清了，现在欠的 = 之后刷的减掉退款。
      * 之后的还款不算：那多半是还上一期的（比如 10/19 出账、10/26 还清），再扣就扣两次了
      */
-    fun owedSince(cardId: Long, entries: List<Entry>, clearedThrough: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long {
-        val cut = clearedThrough.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        return -entries
-            .filter { it.timeMillis >= cut && !(it.kind == EntryKind.TRANSFER && it.toAccountId == cardId) }
-            .sumOf { Books.delta(it, cardId) }
+    fun owedSince(cardId: Long, entries: List<Entry>, clearedThrough: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long =
+        -cardCharges(cardId, entries, clearedThrough, null, zone).sumOf { Books.delta(it, cardId) }
+
+    /** 这张卡在 (after, through] 之间刷的和退的（不含还款）；through 是 null 表示到现在 */
+    fun cardCharges(cardId: Long, entries: List<Entry>, after: LocalDate, through: LocalDate?, zone: ZoneId = ZoneId.systemDefault()): List<Entry> {
+        val from = after.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val to = through?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli() ?: Long.MAX_VALUE
+        return entries.filter {
+            it.timeMillis in from until to &&
+                Books.delta(it, cardId) != 0L &&
+                !(it.kind == EntryKind.TRANSFER && it.toAccountId == cardId)
+        }
+    }
+
+    /**
+     * 对账用的一期：(上上次账单日, 上次账单日]；[back] 往前翻几期。
+     * 没设账单日就按自然月：上个月 1 号到月底
+     */
+    fun statementPeriod(statementDay: Int?, today: LocalDate, back: Int = 0): Pair<LocalDate, LocalDate> {
+        val last = lastStatement(statementDay, today)
+        if (last == null || statementDay == null) {
+            val month = YearMonth.from(today).minusMonths(1L + back)
+            return month.atDay(1).minusDays(1) to month.atEndOfMonth()
+        }
+        val endMonth = YearMonth.from(last).minusMonths(back.toLong())
+        val prevMonth = endMonth.minusMonths(1)
+        return prevMonth.atDay(statementDay.coerceIn(1, prevMonth.lengthOfMonth())) to
+            endMonth.atDay(statementDay.coerceIn(1, endMonth.lengthOfMonth()))
     }
 
     /** 账单已经出了的那一期，金额是准的 */

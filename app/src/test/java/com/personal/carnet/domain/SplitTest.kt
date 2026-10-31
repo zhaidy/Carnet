@@ -17,4 +17,14 @@ class SplitTest {
         assertEquals("你补她 ¥58.20 就两清", Split.describe(-5820, Currency.CNY))
         assertEquals("现在两清", Split.describe(0, Currency.SGD))
     }
+
+    @Test
+    fun 各自付了多少和各自那份() {
+        val s = Split.summary(listOf(SharedExpense(10000, true), SharedExpense(6000, false), SharedExpense(4001, true)), 50)
+        assertEquals(14001L, s.paidByMe)
+        assertEquals(6000L, s.paidByHer)
+        assertEquals(20001L, s.total)
+        assertEquals(s.total, s.myShare + s.herShare)
+        assertEquals(Split.balance(listOf(SharedExpense(10000, true), SharedExpense(6000, false), SharedExpense(4001, true)), 50), s.paidByMe - s.myShare)
+    }
 }
