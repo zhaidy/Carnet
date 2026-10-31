@@ -53,6 +53,7 @@ import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.glass.holo
 
 /** 新建账户；editing 不是 null 时是改这个账户（币种不能改） */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountView? = null) {
     val toast = LocalToast.current
@@ -66,6 +67,11 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
     var dueDay by rememberSaveable { mutableIntStateOf(old?.dueDay ?: 13) }
     // 0 是没设
     var statementDay by rememberSaveable { mutableIntStateOf(old?.statementDay ?: 0) }
+    // 「按账算」：哪天（含）之前刷的都还清了
+    var calcOpen by rememberSaveable { mutableStateOf(false) }
+    var clearedDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pickingCleared by rememberSaveable { mutableStateOf(false) }
+    val snapshot by vm.snapshot.collectAsState()
     var rateText by rememberSaveable { mutableStateOf(FxRate.format(defaultRate.cnyPerSgd)) }
     var cashflow by rememberSaveable { mutableStateOf(old?.inCashflow ?: true) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -144,6 +150,64 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                         GlassField(balance, { balance = it.filter { c -> c.isDigit() || c == '.' } }, "0.00", Modifier.weight(1f), decimal = true, fontSize = 17.sp)
                     }
                     if (old != null) Label("和实际对不上就改成实际的数，以前记的账不动", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(start = 64.dp))
+                    if (old != null && credit) {
+                        val today = java.time.LocalDate.now()
+                        val cleared = clearedDay?.let(java.time.LocalDate::ofEpochDay)
+                            ?: com.personal.carnet.domain.Cashflow.lastStatement(statementDay.takeIf { it > 0 }, today)
+                            ?: today.withDayOfMonth(1).minusDays(1)
+                        if (pickingCleared) {
+                            val state = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = cleared.toEpochDay() * 86_400_000L)
+                            androidx.compose.material3.DatePickerDialog(
+                                onDismissRequest = { pickingCleared = false },
+                                confirmButton = {
+                                    androidx.compose.material3.TextButton(onClick = {
+                                        state.selectedDateMillis?.let { clearedDay = it / 86_400_000L }
+                                        pickingCleared = false
+                                    }) { androidx.compose.material3.Text("好") }
+                                },
+                                dismissButton = { androidx.compose.material3.TextButton(onClick = { pickingCleared = false }) { androidx.compose.material3.Text("取消") } },
+                            ) { androidx.compose.material3.DatePicker(state) }
+                        }
+                        if (!calcOpen) {
+                            Box(
+                                Modifier.padding(start = 64.dp).glassControl(RoundedCornerShape(14.dp)).jelly { calcOpen = true }.padding(horizontal = 14.dp, vertical = 9.dp),
+                            ) { Strong("按账算", size = 13.sp, color = Palette.Violet) }
+                        } else {
+                            val entries = snapshot?.entries.orEmpty()
+                            val owed = com.personal.carnet.domain.Cashflow.owedSince(old.id, entries, cleared)
+                            Column(
+                                Modifier.fillMaxWidth().glassControl(RoundedCornerShape(16.dp)).padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Label("还清到", modifier = Modifier.width(56.dp))
+                                    Box(Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { pickingCleared = true }.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                        Strong("${cleared.monthValue}月${cleared.dayOfMonth}日", size = 14.sp)
+                                    }
+                                }
+                                Label(
+                                    "这天（含）之前刷的都已经还清了：上期账单还了的话，选上期的账单日。" +
+                                        "现在欠的 = 之后在这张卡上刷的，减掉退款。",
+                                    size = 12.sp, weight = FontWeight.Medium,
+                                )
+                                Strong("算出来现在欠 " + Money.format(owed.coerceAtLeast(0), currency), size = 15.sp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(
+                                        Modifier.weight(1f).glassControl(RoundedCornerShape(14.dp)).jelly {
+                                            balance = java.math.BigDecimal.valueOf(owed.coerceAtLeast(0)).movePointLeft(2).setScale(2).toPlainString()
+                                            calcOpen = false
+                                            toast.show("填好了，点保存生效")
+                                        }.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) { Strong("填进现在欠", size = 13.sp, color = Palette.Violet) }
+                                    Box(
+                                        Modifier.weight(1f).glassControl(RoundedCornerShape(14.dp)).jelly { calcOpen = false }.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) { Strong("算了", size = 13.sp) }
+                                }
+                            }
+                        }
+                    }
                     if (credit) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
