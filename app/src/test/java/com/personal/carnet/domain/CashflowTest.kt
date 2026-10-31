@@ -3,6 +3,8 @@ package com.personal.carnet.domain
 import com.personal.carnet.data.Account
 import com.personal.carnet.data.AccountType
 import com.personal.carnet.data.Cycle
+import com.personal.carnet.data.Entry
+import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
 import com.personal.carnet.data.RecurringRule
 import com.personal.carnet.data.RuleKind
@@ -10,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 class CashflowTest {
 
@@ -77,5 +80,50 @@ class CashflowTest {
         val cloud = rule("云盘", RuleKind.EXPENSE, 314, 9900, cycle = Cycle.YEARLY)
         val plan = Cashflow.plan(listOf(rent, netflix, cloud, salary), accounts, balances, listOf(us), rate, today)
         assertEquals(180000L + 999 + 825, plan.monthlyFixedCents)
+    }
+
+    private val zone = ZoneId.of("Asia/Singapore")
+    private fun at(date: String) = LocalDate.parse(date).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+    private fun spend(id: Long, date: String, cents: Long) = Entry(
+        id = id, kind = EntryKind.EXPENSE, timeMillis = at(date), ledgerId = 1, category = "food",
+        amountCents = cents, currency = Currency.SGD, accountId = 2, accountCents = cents, ledgerCents = cents,
+    )
+    private fun repay(id: Long, date: String, cents: Long) = Entry(
+        id = id, kind = EntryKind.TRANSFER, timeMillis = at(date), ledgerId = null, category = "card_payment",
+        amountCents = cents, currency = Currency.SGD, accountId = 1, accountCents = cents, ledgerCents = 0, toAccountId = 2, toCents = cents,
+    )
+
+    @Test
+    fun 账单日在还款日之前最近的那天() {
+        val card = cardA.copy(statementDay = 20)
+        assertEquals(LocalDate.of(2026, 10, 20), Cashflow.statementDate(card, LocalDate.of(2026, 11, 13)))
+        assertEquals(LocalDate.of(2026, 11, 1), Cashflow.statementDate(card.copy(statementDay = 1), LocalDate.of(2026, 11, 26)))
+        // 31 号出账单，碰上小月按月底
+        assertEquals(LocalDate.of(2026, 9, 30), Cashflow.statementDate(card.copy(statementDay = 31), LocalDate.of(2026, 10, 13)))
+        assertNull(Cashflow.statementDate(cardA, LocalDate.of(2026, 11, 13)))
+    }
+
+    @Test
+    fun 设了账单日只还到账单日为止的() {
+        val card = cardA.copy(statementDay = 20)
+        val entries = listOf(
+            spend(1, "2026-10-05", 30000),
+            spend(2, "2026-10-18", 20000),
+            // 账单日之后刷的，下一期再还
+            spend(3, "2026-10-25", 15000),
+            // 账单日之后先还了一部分
+            repay(4, "2026-10-28", 10000),
+        )
+        val owedNow = -Books.accountBalance(card, entries)
+        assertEquals(55000L, owedNow)
+        val balances = mapOf(2L to -owedNow)
+        val due = LocalDate.of(2026, 11, 13)
+        // 50000 出账，已经还了 10000
+        assertEquals(40000L, Cashflow.cardDue(payA, due, card, balances, entries, today, zone))
+        assertEquals(true, Cashflow.cardDueKnown(card, due, today))
+        // 没设账单日：还全部
+        assertEquals(55000L, Cashflow.cardDue(payA, due, cardA, balances, entries, today, zone))
+        // 账单还没出（今天就是账单日）：先按全部估
+        assertEquals(55000L, Cashflow.cardDue(payA, due, card, balances, entries, LocalDate.of(2026, 10, 20), zone))
     }
 }

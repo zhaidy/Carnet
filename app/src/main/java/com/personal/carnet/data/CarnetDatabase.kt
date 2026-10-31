@@ -20,7 +20,7 @@ class Converters {
 
 @Database(
     entities = [Account::class, Ledger::class, Entry::class, Settlement::class, RecurringRule::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -30,7 +30,7 @@ abstract class CarnetDatabase : RoomDatabase() {
     companion object {
         fun open(context: Context): CarnetDatabase =
             Room.databaseBuilder(context, CarnetDatabase::class.java, "carnet.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
 
         /** 第 2 版：加固定收支表。SQL 要和 Room 生成的一模一样（见 schemas/…/2.json） */
@@ -46,6 +46,17 @@ abstract class CarnetDatabase : RoomDatabase() {
                 MIGRATION_2_3_SQL.forEach(db::execSQL)
             }
         }
+
+        /** 第 4 版：信用卡的账单日，可空的新列 */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_3_4_SQL.forEach(db::execSQL)
+            }
+        }
+
+        val MIGRATION_3_4_SQL = listOf(
+            "ALTER TABLE `accounts` ADD COLUMN `statementDay` INTEGER",
+        )
 
         val MIGRATION_2_3_SQL = listOf(
             "ALTER TABLE `ledgers` ADD COLUMN `syncCode` TEXT",

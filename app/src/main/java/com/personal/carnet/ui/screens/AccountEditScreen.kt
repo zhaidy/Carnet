@@ -64,6 +64,8 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
     var currency by rememberSaveable { mutableStateOf(old?.currency ?: MainCurrency) }
     var balance by rememberSaveable { mutableStateOf(oldShown?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: "") }
     var dueDay by rememberSaveable { mutableIntStateOf(old?.dueDay ?: 13) }
+    // 0 是没设
+    var statementDay by rememberSaveable { mutableIntStateOf(old?.statementDay ?: 0) }
     var rateText by rememberSaveable { mutableStateOf(FxRate.format(defaultRate.cnyPerSgd)) }
     var cashflow by rememberSaveable { mutableStateOf(old?.inCashflow ?: true) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
@@ -150,6 +152,21 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                             }
                             Stepper("$dueDay 号", "还款日", onMinus = { dueDay = if (dueDay <= 1) 31 else dueDay - 1 }, onPlus = { dueDay = if (dueDay >= 31) 1 else dueDay + 1 })
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Label("账单日")
+                                Label(
+                                    if (statementDay == 0) "没设：还卡按卡上现在欠的全部算" else "还卡只还到账单日为止刷的，之后刷的算下一期",
+                                    size = 12.sp, weight = FontWeight.Medium,
+                                )
+                            }
+                            Stepper(
+                                if (statementDay == 0) "没设" else "$statementDay 号", "账单日",
+                                onMinus = { statementDay = if (statementDay <= 0) 31 else statementDay - 1 },
+                                onPlus = { statementDay = if (statementDay >= 31) 0 else statementDay + 1 },
+                            )
+                        }
+                        Label("账单日在月结单最上面（Statement Date），或者银行 App 的信用卡账单里", size = 11.sp, weight = FontWeight.Medium)
                     }
                     if (foreign) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -161,7 +178,8 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                             Label("你自己定，所有人民币账户共用；记账、转账时每一笔还能单独改", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(start = 64.dp))
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 信用卡不算：刷卡的钱按还款日从储蓄卡里扣
+                    if (!credit) Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Strong("算进「发薪前还能花」", size = 13.sp)
                             Label(
@@ -227,7 +245,8 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                                 name = name.trim(), type = type,
                                 openingCents = old.openingCents + (target - editing.balanceCents),
                                 dueDay = if (credit) dueDay else null,
-                                inCashflow = cashflow,
+                                statementDay = if (credit && statementDay > 0) statementDay else null,
+                                inCashflow = cashflow && !credit,
                             ),
                         )
                         toast.show("改好了「${name.trim()}」")
@@ -240,7 +259,8 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                                 name = name.trim(), type = type, currency = currency,
                                 openingCents = if (credit) -cents else cents,
                                 dueDay = if (credit) dueDay else null,
-                                inCashflow = cashflow,
+                                statementDay = if (credit && statementDay > 0) statementDay else null,
+                                inCashflow = cashflow && !credit,
                             ),
                         )
                         toast.show("已添加「${name.trim()}」· " + Money.format(cents, currency))

@@ -148,6 +148,7 @@ private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
             }
         }
         val notes = listOfNotNull(
+            a.statementDay?.takeIf { credit }?.let { "每月 $it 号出账单" },
             a.dueDay?.takeIf { credit }?.let { "每月 $it 号还全额" },
             if (!a.inCashflow && !credit) "不算进发薪前还能花" else null,
         )
