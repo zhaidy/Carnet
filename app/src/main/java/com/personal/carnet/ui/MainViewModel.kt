@@ -2,6 +2,11 @@ package com.personal.carnet.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.personal.carnet.ai.Assistant
+import com.personal.carnet.ai.Sentence
+import com.personal.carnet.auto.AutoConfig
+import com.personal.carnet.auto.AutoRecorder
+import com.personal.carnet.auto.AutoSettings
 import com.personal.carnet.data.Account
 import com.personal.carnet.data.EntryFactory
 import com.personal.carnet.data.EntryKind
@@ -50,7 +55,45 @@ sealed interface ImportState {
     data class Failed(val message: String) : ImportState
 }
 
-class MainViewModel(private val repo: Repository, private val updater: UpdateChecker) : ViewModel() {
+class MainViewModel(
+    private val repo: Repository,
+    private val updater: UpdateChecker,
+    private val auto: AutoSettings,
+    private val assistant: Assistant,
+    private val recorder: AutoRecorder,
+) : ViewModel() {
+
+    val autoConfig: StateFlow<AutoConfig> get() = auto.config
+    val claudeReady: Boolean get() = assistant.configured
+
+    fun setWalletEnabled(on: Boolean) = auto.setWalletEnabled(on)
+    fun setCard(last4: String, accountId: Long) = auto.setCard(last4, accountId)
+    fun setDefaultAccount(id: Long) = auto.setDefaultAccount(id)
+    fun setAutoLedger(id: Long) = auto.setLedger(id)
+    fun setClaude(key: String, model: String) = auto.setClaude(key, model)
+
+    /** 设置页里贴一条通知试试：只认，不记账 */
+    suspend fun tryNotification(title: String, text: String): AutoRecorder.Result =
+        recorder.handle(title, text, System.currentTimeMillis(), record = false)
+
+    suspend fun pingClaude(): String = assistant.ping()
+
+    /** 一句话记账 */
+    suspend fun understand(sentence: String, ledgers: List<String>, accounts: List<String>): Sentence =
+        assistant.understand(sentence, ledgers, accounts)
+
+    fun shareAuto(entryId: Long) = viewModelScope.launch {
+        repo.moveToSharedLedger(entryId)
+        auto.removeRecent(entryId)
+    }
+
+    fun undoAuto(entryId: Long) = viewModelScope.launch {
+        repo.deleteEntry(entryId)
+        auto.removeRecent(entryId)
+    }
+
+    fun keepAuto(entryId: Long) = auto.removeRecent(entryId)
+
 
     val snapshot: StateFlow<Snapshot?> = repo.snapshot.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 

@@ -25,6 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -90,6 +93,9 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var rateText by rememberSaveable { mutableStateOf("") }
     var rateOpen by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
+    var sentence by rememberSaveable { mutableStateOf("") }
+    var thinking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     var fromId by rememberSaveable { mutableStateOf(accounts.firstOrNull { it.currency == MainCurrency }?.id ?: accounts.firstOrNull()?.id) }
     var toId by rememberSaveable { mutableStateOf(accounts.firstOrNull { it.currency == Currency.CNY }?.id ?: accounts.getOrNull(1)?.id) }
@@ -188,6 +194,40 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (vm.claudeReady) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlassField(sentence, { sentence = it }, "说一句：昨晚和她吃火锅 86，我付的", Modifier.weight(1f))
+                        Box(
+                            Modifier.tinted(RoundedCornerShape(14.dp), Palette.Cta).jelly {
+                                if (thinking || sentence.isBlank()) return@jelly
+                                thinking = true
+                                scope.launch {
+                                    try {
+                                        val r = vm.understand(sentence, ledgers.map { it.name }, accounts.map { it.name })
+                                        mode = if (r.income) Mode.INCOME else Mode.EXPENSE
+                                        amount = plain(r.cents)
+                                        category = r.category
+                                        note = r.note
+                                        if (!r.income) {
+                                            r.ledger?.let { name -> ledgers.firstOrNull { it.name == name } }?.let { ledgerId = it.id }
+                                            payer = if (r.herPaid) Payer.HER else Payer.ME
+                                        }
+                                        val acc = r.account?.let { name -> accounts.firstOrNull { it.name == name } }
+                                        if (acc != null) accountId = acc.id
+                                        val chosenLedger = if (r.income) personal else ledgers.firstOrNull { it.id == ledgerId }
+                                        spend = r.currency ?: chosenLedger?.currency ?: (acc ?: accounts.firstOrNull { it.id == accountId })?.currency ?: spend
+                                        sentence = ""
+                                        toast.show("听懂了，看一下对不对再点完成")
+                                    } catch (e: Exception) {
+                                        toast.show(e.message ?: "没听懂")
+                                    } finally {
+                                        thinking = false
+                                    }
+                                }
+                            }.padding(horizontal = 14.dp, vertical = 11.dp),
+                        ) { Strong(if (thinking) "…" else "听懂", size = 14.sp, color = Color.White) }
+                    }
+                }
                 Column(
                     Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),

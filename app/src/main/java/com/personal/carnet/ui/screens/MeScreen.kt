@@ -47,6 +47,7 @@ fun MeScreen(
     onOpenRecurring: () -> Unit,
     onOpenAccounts: () -> Unit,
     onOpenImport: () -> Unit,
+    onOpenAuto: () -> Unit,
 ) {
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -61,6 +62,7 @@ fun MeScreen(
                 onOpenRecurring,
             )
         }
+        item { MenuRow(IconPaths.SPARKLE_LINE, "自动记账和 Claude", "Google 钱包付款自动记一笔；Claude API Key", onOpenAuto) }
         item { MenuRow(IconPaths.IMPORT, "导入随手记", "选随手记导出的 Excel 或 CSV", onOpenImport) }
         item { MenuRow(IconPaths.SWAP, "默认汇率", "1 S$ = ¥" + FxRate.format(snapshot.rate.cnyPerSgd) + " · 在账户页改", onOpenAccounts) }
         item { UpdateCard(update, currentBuild, onCheckUpdate, onInstall) }

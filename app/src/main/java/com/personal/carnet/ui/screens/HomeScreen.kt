@@ -74,6 +74,10 @@ fun HomeScreen(
     onConfirm: (Occurrence) -> Unit,
     onSkip: (Occurrence) -> Unit,
     onDelete: (Entry) -> Unit,
+    recentAuto: List<Long> = emptyList(),
+    onShareAuto: (Long) -> Unit = {},
+    onUndoAuto: (Long) -> Unit = {},
+    onKeepAuto: (Long) -> Unit = {},
 ) {
     val toast = LocalToast.current
     var ledgerFilter by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -113,6 +117,36 @@ fun HomeScreen(
             }
         }
         item { NetWorthCard(snapshot, onOpenAccounts, onOpenLedgers, onOpenRecurring) }
+        val dayAgo = System.currentTimeMillis() - 48 * 3600_000L
+        val autoEntries = snapshot.entries.filter { it.id in recentAuto && it.timeMillis > dayAgo }
+        if (autoEntries.isNotEmpty()) {
+            item {
+                Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Sparkle(Palette.Violet, 14.dp)
+                    Strong("从 Google 钱包自动记下的")
+                }
+            }
+            items(autoEntries, key = { "a" + it.id }) { entry ->
+                val shared = ledgers[entry.ledgerId]?.shared == true
+                val hasShared = snapshot.ledgers.any { it.ledger.shared }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    EntryRow(entry.line(accounts, ledgers))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!shared && hasShared && entry.kind == com.personal.carnet.data.EntryKind.EXPENSE) {
+                            Box(Modifier.weight(1f).tinted(RoundedCornerShape(18.dp), Palette.Cta).jelly {
+                                onShareAuto(entry.id)
+                                toast.show("放进共用账本了，你们各一半")
+                            }.padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Strong("算我们俩的", size = 14.sp, color = Color.White) }
+                        }
+                        Box(Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { onKeepAuto(entry.id) }.padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Strong("没问题", size = 14.sp) }
+                        Box(Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
+                            onUndoAuto(entry.id)
+                            toast.show("撤销了")
+                        }.padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Strong("撤销", size = 14.sp, color = Palette.Rose) }
+                    }
+                }
+            }
+        }
         if (snapshot.accounts.isEmpty()) {
             item {
                 GlassCard {
