@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#EBDDFF</color>
+    <!-- 和 Compose 主题的底色一致，启动时不闪白 -->
+    <color name="carnet_background">#ECE2FF</color>
+</resources>

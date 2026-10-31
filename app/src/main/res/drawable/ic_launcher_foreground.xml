@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 一颗四角星，旁边一颗小星 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#5438C4"
+        android:pathData="M52,30 C54,44 58,48 72,50 C58,52 54,56 52,70 C50,56 46,52 32,50 C46,48 50,44 52,30 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,32 C70.8,37 72,38.2 77,39 C72,39.8 70.8,41 70,46 C69.2,41 68,39.8 63,39 C68,38.2 69.2,37 70,32 Z" />
+</vector>
