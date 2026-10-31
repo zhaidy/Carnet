@@ -46,6 +46,7 @@ fun MeScreen(
     onInstall: (com.personal.carnet.update.UpdateInfo) -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenAccounts: () -> Unit,
+    onOpenImport: () -> Unit,
 ) {
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -60,6 +61,7 @@ fun MeScreen(
                 onOpenRecurring,
             )
         }
+        item { MenuRow(IconPaths.IMPORT, "导入随手记", "选随手记导出的 Excel 或 CSV", onOpenImport) }
         item { MenuRow(IconPaths.SWAP, "默认汇率", "1 S$ = ¥" + FxRate.format(snapshot.rate.cnyPerSgd) + " · 在账户页改", onOpenAccounts) }
         item { UpdateCard(update, currentBuild, onCheckUpdate, onInstall) }
     }

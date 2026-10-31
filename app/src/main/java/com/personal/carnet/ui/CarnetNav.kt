@@ -51,6 +51,7 @@ import com.personal.carnet.ui.screens.HomeScreen
 import com.personal.carnet.ui.screens.LedgerEditScreen
 import com.personal.carnet.ui.screens.LedgersScreen
 import com.personal.carnet.ui.screens.MeScreen
+import com.personal.carnet.ui.screens.ImportScreen
 import com.personal.carnet.ui.screens.RecurringEditScreen
 import com.personal.carnet.ui.screens.RecurringScreen
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -65,6 +66,7 @@ private object Routes {
     const val ME = "me"
     const val RECURRING = "recurring"
     const val NEW_RULE = "recurring/new"
+    const val IMPORT = "import"
 }
 
 private data class Tab(val route: String, val label: String, val icon: String)
@@ -128,8 +130,10 @@ fun CarnetRoot(vm: MainViewModel) {
                             onInstall = vm::installUpdate,
                             onOpenRecurring = { nav.navigate(Routes.RECURRING) },
                             onOpenAccounts = { nav.switchTab(Routes.ACCOUNTS) },
+                            onOpenImport = { nav.navigate(Routes.IMPORT) },
                         )
                     }
+                    composable(Routes.IMPORT) { ImportScreen(snap, vm, onBack = { nav.popBackStack() }) }
                     composable(Routes.RECURRING) {
                         RecurringScreen(
                             snap,

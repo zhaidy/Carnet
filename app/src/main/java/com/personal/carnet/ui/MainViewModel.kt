@@ -15,6 +15,14 @@ import com.personal.carnet.domain.Occurrence
 import com.personal.carnet.domain.Snapshot
 import com.personal.carnet.update.UpdateChecker
 import com.personal.carnet.update.UpdateInfo
+import com.personal.carnet.importer.AccountChoice
+import com.personal.carnet.importer.ImportException
+import com.personal.carnet.importer.ImportOutcome
+import com.personal.carnet.importer.ImportedRow
+import com.personal.carnet.importer.ParsedSheet
+import com.personal.carnet.importer.SheetReader
+import com.personal.carnet.importer.SuishoujiImport
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +40,16 @@ sealed interface UpdateState {
     data class Failed(val message: String) : UpdateState
 }
 
+/** 导入走到哪一步了 */
+sealed interface ImportState {
+    data object Idle : ImportState
+    data object Reading : ImportState
+    data class Preview(val fileName: String, val sheet: ParsedSheet) : ImportState
+    data object Importing : ImportState
+    data class Done(val outcome: ImportOutcome) : ImportState
+    data class Failed(val message: String) : ImportState
+}
+
 class MainViewModel(private val repo: Repository, private val updater: UpdateChecker) : ViewModel() {
 
     val snapshot: StateFlow<Snapshot?> = repo.snapshot.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -42,6 +60,38 @@ class MainViewModel(private val repo: Repository, private val updater: UpdateChe
     val update: StateFlow<UpdateState> = _update.asStateFlow()
 
     val currentBuild: Long get() = updater.currentBuild()
+
+    private val _import = MutableStateFlow<ImportState>(ImportState.Idle)
+    val import: StateFlow<ImportState> = _import.asStateFlow()
+
+    fun readImport(bytes: ByteArray, fileName: String) {
+        _import.value = ImportState.Reading
+        viewModelScope.launch(Dispatchers.Default) {
+            _import.value = try {
+                val sheet = SuishoujiImport.parse(SheetReader.read(bytes))
+                if (sheet.rows.isEmpty()) ImportState.Failed("表里没有能导入的账") else ImportState.Preview(fileName, sheet)
+            } catch (e: ImportException) {
+                ImportState.Failed(e.message ?: "读不了这个表")
+            } catch (e: Exception) {
+                ImportState.Failed("读不了这个表：${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    fun runImport(rows: List<ImportedRow>, choices: Map<String, AccountChoice>, ledgerId: Long, settled: Boolean) {
+        _import.value = ImportState.Importing
+        viewModelScope.launch {
+            _import.value = try {
+                ImportState.Done(repo.importRows(rows, choices, ledgerId, settled))
+            } catch (e: Exception) {
+                ImportState.Failed("导入失败：${e.message ?: e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    fun resetImport() {
+        _import.value = ImportState.Idle
+    }
 
     init {
         viewModelScope.launch {
