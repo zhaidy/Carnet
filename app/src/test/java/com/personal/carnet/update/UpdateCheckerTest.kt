@@ -26,4 +26,12 @@ class UpdateCheckerTest {
         assertNull(UpdateChecker.pickUpdate("[" + release(6, "- x", apk = false) + "]", current = 5))
         assertNull(UpdateChecker.pickUpdate("[" + release(6, "- x", draft = true) + "]", current = 5))
     }
+
+    @Test
+    fun 限流时从网页跳转读最新版本() {
+        assertEquals(24L, UpdateChecker.buildFromLocation("https://github.com/zhaidy/Carnet/releases/tag/build-24"))
+        assertNull(UpdateChecker.buildFromLocation("https://github.com/zhaidy/Carnet/releases"))
+        assertNull(UpdateChecker.buildFromLocation(null))
+        assertEquals("https://github.com/zhaidy/Carnet/releases/download/build-24/carnet.apk", UpdateChecker.apkUrlFor(24))
+    }
 }
