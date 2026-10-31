@@ -258,7 +258,7 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         throw SyncException(
             when (e.code) {
                 FirebaseFirestoreException.Code.NOT_FOUND -> "邀请码不对"
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> "没有权限：邀请码不对，或者 Firestore 规则还没加上 Carnet 的部分"
+                FirebaseFirestoreException.Code.PERMISSION_DENIED -> "没有权限：邀请码不对，或者 Firestore 规则还没贴上"
                 FirebaseFirestoreException.Code.UNAVAILABLE -> "连不上服务器，检查一下网络"
                 else -> "出错了：${e.message}"
             },
