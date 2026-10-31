@@ -219,6 +219,8 @@ class MainViewModel(
 
     fun moveSettlement(id: Long, date: java.time.LocalDate) = viewModelScope.launch { repo.moveSettlement(id, date) }
 
+    fun settleUntil(ledgerId: Long, date: java.time.LocalDate) = viewModelScope.launch { repo.settleUntil(ledgerId, date) }
+
     fun undoSettlement(id: Long) = viewModelScope.launch { repo.undoSettlement(id) }
 
     fun settle(ledgerId: Long, cents: Long) = viewModelScope.launch { repo.settle(ledgerId, cents) }

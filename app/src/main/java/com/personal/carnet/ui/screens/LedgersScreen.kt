@@ -133,7 +133,8 @@ fun LedgersScreen(
                 onEdit = { onEdit(view) },
                 onOpenBills = { onOpenBills(view) },
                 onMoveSettlement = { date ->
-                    view.lastSettlement?.let { vm.moveSettlement(it.id, date) }
+                    val last = view.lastSettlement
+                    if (last != null) vm.moveSettlement(last.id, date) else vm.settleUntil(view.ledger.id, date)
                     toast.show("改好了：两清算到 ${date.monthValue}/${date.dayOfMonth}，之后的账重新算")
                 },
                 onUndoSettlement = {
@@ -175,8 +176,9 @@ private fun LedgerCard(
     var picking by rememberSaveable { mutableStateOf(false) }
     val last = view.lastSettlement
     val lastDate = last?.let { Instant.ofEpochMilli(it.timeMillis).atZone(ZoneId.systemDefault()).toLocalDate() }
-    if (picking && lastDate != null) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = lastDate.toEpochDay() * 86_400_000L)
+    if (picking) {
+        val initial = lastDate ?: LocalDate.now().withDayOfMonth(1).minusMonths(1).minusDays(1)
+        val state = rememberDatePickerState(initialSelectedDateMillis = initial.toEpochDay() * 86_400_000L)
         DatePickerDialog(
             onDismissRequest = { picking = false },
             confirmButton = {
@@ -222,6 +224,14 @@ private fun LedgerCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Strong(Split.describe(view.balanceCents, view.currency), size = 14.sp, color = if (view.balanceCents > 0) Palette.Rose else Palette.Ink)
+                    if (lastDate == null && view.periodCents > 0 && !confirming) {
+                        Row(
+                            Modifier.jelly { picking = true }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Label("以前结过？设两清到哪天", size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                        }
+                    }
                     if (lastDate != null) {
                         Row(
                             Modifier.jelly { settleOpen = !settleOpen }.padding(vertical = 2.dp),

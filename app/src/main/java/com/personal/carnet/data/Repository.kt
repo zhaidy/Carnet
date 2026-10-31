@@ -148,6 +148,14 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         onSettlementChanged?.invoke(moved, ledger, false)
     }
 
+    /** 补记一次以前的两清：[date] 那天（含）之前的账都算结过了，金额按上一次两清到那天算 */
+    suspend fun settleUntil(ledgerId: Long, date: LocalDate) {
+        val ledger = dao.ledgersNow().firstOrNull { it.id == ledgerId } ?: return
+        val time = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() - 1
+        val previous = dao.settlementsInNow(ledgerId).filter { it.timeMillis < time }.maxOfOrNull { it.timeMillis } ?: Long.MIN_VALUE
+        dao.insert(Settlement(ledgerId = ledgerId, timeMillis = time, cents = Books.balanceBetween(ledger, dao.entriesNow(), previous, time)))
+    }
+
     /** 撤销一次两清：这之前的账重新算进去 */
     suspend fun undoSettlement(id: Long) {
         val s = dao.settlement(id) ?: return
