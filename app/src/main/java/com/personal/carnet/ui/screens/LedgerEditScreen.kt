@@ -1,5 +1,6 @@
 package com.personal.carnet.ui.screens
 
+import androidx.compose.runtime.collectAsState
 import com.personal.carnet.ui.Partner
 
 import androidx.compose.foundation.layout.Arrangement
@@ -82,6 +83,11 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
         mutableStateOf(old?.herFixedCents?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: "")
     }
     val herFixed = if (fixed) Money.fromInput(herText).takeIf { it > 0 } else null
+    // 到结算日自动两清，钱记进哪个账户
+    val snapshot by vm.snapshot.collectAsState()
+    val moneyAccounts = snapshot?.accounts?.map { it.account }?.filter { it.type != com.personal.carnet.data.AccountType.CREDIT }.orEmpty()
+    var autoSettle by rememberSaveable { mutableStateOf(old?.autoSettleAccountId != null) }
+    var autoAccountId by rememberSaveable { mutableStateOf(old?.autoSettleAccountId) }
     var mode by rememberSaveable { mutableStateOf(old?.settleMode ?: SettleMode.DATE) }
     var day by rememberSaveable { mutableIntStateOf(old?.settleDay ?: 31) }
     var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
@@ -234,6 +240,26 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             }
                             SettleMode.MANUAL -> {}
                         }
+                        if (mode != SettleMode.MANUAL && moneyAccounts.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Strong("到结算日自动两清", size = 13.sp)
+                                    Label(
+                                        if (autoSettle) "打开 Carnet 时，到了结算日就自动两清，${Partner.name}补的钱记进下面的账户（不算收入）"
+                                        else "不用每次手动点两清",
+                                        size = 12.sp, weight = FontWeight.Medium,
+                                    )
+                                }
+                                GlassSwitch(autoSettle, "到结算日自动两清") {
+                                    autoSettle = it
+                                    if (it && autoAccountId == null) autoAccountId = (moneyAccounts.firstOrNull { a -> a.currency == (currency ?: MainCurrency) } ?: moneyAccounts.first()).id
+                                }
+                            }
+                            if (autoSettle) {
+                                ChipRow(moneyAccounts.map { it.id to (it.name + " " + it.currency.symbol) }, autoAccountId, "进哪里") { autoAccountId = it }
+                                Label("不管${Partner.name}那天有没有真的转，都按转了算；没转的话到账本里「上次两清 · 改」撤销就行。", size = 11.sp, weight = FontWeight.Medium)
+                            }
+                        }
                         Label(
                             when (mode) {
                                 SettleMode.MONTHLY -> "每月${if (day == 31) "最后一天" else "${day}号"}提醒你们结一次，算的是上次两清到这天的账。"
@@ -293,6 +319,10 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
                             herFixedCents = if (withHer) herFixed else null,
+                            autoSettleAccountId = if (withHer && autoSettle && mode != SettleMode.MANUAL) autoAccountId else null,
+                            autoSettleFromEpochDay = if (withHer && autoSettle && mode != SettleMode.MANUAL) {
+                                old?.autoSettleFromEpochDay?.takeIf { old.autoSettleAccountId != null } ?: LocalDate.now().toEpochDay()
+                            } else null,
                             settleMode = mode,
                             settleDay = day,
                             settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,
@@ -308,6 +338,10 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
                             herFixedCents = if (withHer) herFixed else null,
+                            autoSettleAccountId = if (withHer && autoSettle && mode != SettleMode.MANUAL) autoAccountId else null,
+                            autoSettleFromEpochDay = if (withHer && autoSettle && mode != SettleMode.MANUAL) {
+                                old?.autoSettleFromEpochDay?.takeIf { old.autoSettleAccountId != null } ?: LocalDate.now().toEpochDay()
+                            } else null,
                             settleMode = mode,
                             settleDay = day,
                             settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,

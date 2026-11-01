@@ -100,4 +100,17 @@ class MigrationTest {
             assertEquals(table, expected, migrated)
         }
     }
+
+    @Test
+    fun 第七版加的自动两清和导出的一样() {
+        val added = CarnetDatabase.MIGRATION_6_7_SQL.map { sql ->
+            val m = Regex("""ALTER TABLE `(\w+)` ADD COLUMN `(\w+)` (\w+)( NOT NULL)?""").find(sql)!!.groupValues
+            Triple(m[1], m[2], m[3] to m[4].isNotEmpty())
+        }
+        for (table in listOf("accounts", "ledgers", "entries", "settlements", "recurring_rules")) {
+            val expected = columns(7, table)
+            val migrated = columns(6, table) + added.filter { it.first == table }.associate { it.second to it.third }
+            assertEquals(table, expected, migrated)
+        }
+    }
 }

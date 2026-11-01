@@ -20,7 +20,7 @@ class Converters {
 
 @Database(
     entities = [Account::class, Ledger::class, Entry::class, Settlement::class, RecurringRule::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -30,7 +30,7 @@ abstract class CarnetDatabase : RoomDatabase() {
     companion object {
         fun open(context: Context): CarnetDatabase =
             Room.databaseBuilder(context, CarnetDatabase::class.java, "carnet.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
 
         /** 第 2 版：加固定收支表。SQL 要和 Room 生成的一模一样（见 schemas/…/2.json） */
@@ -67,6 +67,18 @@ abstract class CarnetDatabase : RoomDatabase() {
                 MIGRATION_5_6_SQL.forEach(db::execSQL)
             }
         }
+
+        /** 第 7 版：共用账本自动两清，都是可空的新列 */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_7_SQL.forEach(db::execSQL)
+            }
+        }
+
+        val MIGRATION_6_7_SQL = listOf(
+            "ALTER TABLE `ledgers` ADD COLUMN `autoSettleAccountId` INTEGER",
+            "ALTER TABLE `ledgers` ADD COLUMN `autoSettleFromEpochDay` INTEGER",
+        )
 
         val MIGRATION_5_6_SQL = listOf(
             "ALTER TABLE `ledgers` ADD COLUMN `herFixedCents` INTEGER",

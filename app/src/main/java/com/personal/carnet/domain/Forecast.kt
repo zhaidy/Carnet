@@ -24,6 +24,9 @@ data class Forecast(val start: Long, val items: List<ForecastItem>, val until: L
     /** 第一次不够的那一项；都够是 null */
     val firstShort: ForecastItem? get() = items.firstOrNull { it.balance < 0 }
 
+    /** 钱最少的时候：余额最低的那一项；比现在还多（只进不出）是 null */
+    val lowest: ForecastItem? get() = items.minByOrNull { it.balance }?.takeIf { it.balance < start }
+
     /** 不够之后，哪一项过后又够了 */
     val recovered: ForecastItem? get() {
         val short = firstShort ?: return null
@@ -102,6 +105,25 @@ object Forecasts {
             ForecastItem(e.date, e.kind, e.name, e.cents, balance)
         }
         return Forecast(start, items, until)
+    }
+
+    /** (after, through] 之间所有的结算日，按先后排；想结就结的没有 */
+    fun settleDatesBetween(l: Ledger, after: LocalDate, through: LocalDate): List<LocalDate> {
+        if (!through.isAfter(after)) return emptyList()
+        return when (l.settleMode) {
+            SettleMode.MANUAL -> emptyList()
+            SettleMode.DATE -> listOfNotNull(l.settleEpochDay?.let(LocalDate::ofEpochDay)?.takeIf { it.isAfter(after) && !it.isAfter(through) })
+            SettleMode.MONTHLY -> {
+                val out = mutableListOf<LocalDate>()
+                var m = YearMonth.from(after)
+                while (!m.isAfter(YearMonth.from(through))) {
+                    val d = m.atDay(l.settleDay.coerceIn(1, m.lengthOfMonth()))
+                    if (d.isAfter(after) && !d.isAfter(through)) out += d
+                    m = m.plusMonths(1)
+                }
+                out
+            }
+        }
     }
 
     /** 共用账本下一次结算的日子（今天也算）；想结就结的是 null */
