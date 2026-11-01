@@ -225,7 +225,8 @@ class MainViewModel(
 
     fun undoSettlement(id: Long) = viewModelScope.launch { repo.undoSettlement(id) }
 
-    fun settle(ledgerId: Long, cents: Long) = viewModelScope.launch { repo.settle(ledgerId, cents) }
+    fun settle(ledgerId: Long, cents: Long, accountId: Long? = null, note: String = "两清") =
+        viewModelScope.launch { repo.settle(ledgerId, cents, accountId, note) }
 
     fun setDefaultRate(rate: FxRate) = repo.setDefaultRate(rate)
 

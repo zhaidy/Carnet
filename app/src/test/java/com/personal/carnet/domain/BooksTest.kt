@@ -111,4 +111,29 @@ class BooksTest {
         val settled = listOf(Settlement(id = 1, ledgerId = us.id, timeMillis = 250, cents = 2000))
         assertEquals(listOf(3L), Books.openSharedExpenses(us, entries, settled).map { it.id })
     }
+
+    @Test
+    fun 两清时把补的钱记进账户_净资产不变() {
+        // 我付了 100，她该补我 50
+        val entries = listOf(expense(1, us, 10000, bank, time = 100))
+        val before = Books.snapshot(listOf(bank), listOf(personal, us), entries, emptyList(), rate, 0)
+        assertEquals(5000L, before.sharedBalanceCents)
+        // 两清，她补的 50 进储蓄卡
+        val money = com.personal.carnet.data.EntryFactory.settleMoney(bank, 5000, Currency.SGD, rate, "她补的钱", 200)
+        val after = Books.snapshot(
+            listOf(bank), listOf(personal, us), entries + money.copy(id = 2),
+            listOf(Settlement(id = 1, ledgerId = us.id, timeMillis = 200, cents = 5000)), rate, 0,
+        )
+        assertEquals(0L, after.sharedBalanceCents)
+        assertEquals(before.netWorthCents, after.netWorthCents)
+        assertEquals(before.accounts.first().balanceCents + 5000, after.accounts.first().balanceCents)
+        // 不算花销
+        assertEquals(before.monthMySpendingCents, after.monthMySpendingCents)
+        // 反过来：我补她 30，从储蓄卡出
+        val out = com.personal.carnet.data.EntryFactory.settleMoney(bank, -3000, Currency.SGD, rate, "补给她", 300)
+        assertEquals(-3000L, Books.delta(out, bank.id))
+        // 人民币账本、新币账户：按汇率换
+        val cny = com.personal.carnet.data.EntryFactory.settleMoney(bank, 53000, Currency.CNY, rate, "她补的钱", 300)
+        assertEquals(10000L, Books.delta(cny, bank.id))
+    }
 }
