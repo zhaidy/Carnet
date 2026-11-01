@@ -24,7 +24,7 @@ data class WidgetData(
             val (headline, label) = if (spendable != null && payday != null) {
                 Money.format(spendable, MainCurrency) to "${payday.monthValue}/${payday.dayOfMonth} 发薪前还能花"
             } else {
-                Money.format(s.netWorthCents, MainCurrency) to "净资产"
+                Money.format(s.netWorthAfterFixedCents, MainCurrency) to "净资产"
             }
             val shared = if (s.ledgers.none { it.ledger.shared }) null else when {
                 s.sharedBalanceCents > 0 -> "她补你 " + Money.format(s.sharedBalanceCents, MainCurrency)

@@ -203,8 +203,8 @@ fun HomeScreen(
 private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenLedgers: () -> Unit, onOpenRecurring: () -> Unit) {
     // 进来时数字从 0 滚到实际金额
     val shown = remember { Animatable(0f) }
-    LaunchedEffect(snapshot.netWorthCents) {
-        shown.animateTo(snapshot.netWorthCents.toFloat(), tween(1400, easing = FastOutSlowInEasing))
+    LaunchedEffect(snapshot.netWorthAfterFixedCents) {
+        shown.animateTo(snapshot.netWorthAfterFixedCents.toFloat(), tween(1400, easing = FastOutSlowInEasing))
     }
     val plan = snapshot.plan
     Column(
@@ -253,6 +253,14 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
                 append("新币 ${Money.format(snapshot.mainCashCents)} + 国内 ≈ ${Money.format(snapshot.cnyCashInMainCents)}")
                 append(" − 信用卡 ${Money.format(snapshot.cardsOwedCents)}")
                 if (shared != 0L) append(if (shared > 0) " + 你多垫的 ${Money.format(shared)}" else " − 她垫的 ${Money.format(-shared)}")
+                if (plan.committedCents != 0L) {
+                    val until = plan.committedUntil
+                    val names = plan.committed.map { it.rule.name }.distinct()
+                    append(" − ")
+                    append(if (plan.payday != null) "发薪前" else until?.let { "${it.monthValue}/${it.dayOfMonth} 前" } ?: "")
+                    append("固定支出 ${Money.format(plan.committedCents)}")
+                    append("（" + names.take(4).joinToString("、") + (if (names.size > 4) " 等" else "") + "）")
+                }
             },
             size = 12.sp, weight = FontWeight.Medium,
         )

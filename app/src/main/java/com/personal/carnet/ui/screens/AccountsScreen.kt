@@ -67,7 +67,7 @@ fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxR
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f).glass(RoundedCornerShape(22.dp)).padding(14.dp)) {
                     Label("净资产", size = 12.sp)
-                    Strong(Money.format(snapshot.netWorthCents, MainCurrency), size = 19.sp)
+                    Strong(Money.format(snapshot.netWorthAfterFixedCents, MainCurrency), size = 19.sp)
                 }
                 Column(
                     Modifier.weight(1f).holo(RoundedCornerShape(22.dp)).jelly {

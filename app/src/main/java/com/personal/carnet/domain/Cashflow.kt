@@ -33,6 +33,10 @@ data class Plan(
     val spendableCents: Long?,
     /** 每月固定支出里你那份，按主货币 */
     val monthlyFixedCents: Long,
+    /** 下次发薪前（没设工资就到月底）还要付的固定支出：你那份、主货币；不含还卡（卡上欠的已经算进净资产了） */
+    val committedCents: Long = 0,
+    val committed: List<Occurrence> = emptyList(),
+    val committedUntil: LocalDate? = null,
 )
 
 object Cashflow {
@@ -188,6 +192,15 @@ object Cashflow {
             rate.convert(mine, rule.currency, MainCurrency)
         }
 
-        return Plan(pending, upcoming, payday, spendable, monthly)
+        // 净资产要扣的：发薪前（没设工资就到月底）还没付的固定支出，共用账本只算你那份
+        val until = payday ?: YearMonth.from(today).atEndOfMonth()
+        val committed = (pending + upcoming).filter { it.rule.kind == RuleKind.EXPENSE && !it.date.isAfter(until) }
+        val committedCents = committed.sumOf { occ ->
+            val ledger = ledgerById[occ.rule.ledgerId]
+            val mine = if (ledger?.shared == true) Split.myShare(occ.cents, ledger.myPercent) else occ.cents
+            rate.convert(mine, occ.currency, MainCurrency)
+        }
+
+        return Plan(pending, upcoming, payday, spendable, monthly, committedCents, committed, until)
     }
 }
