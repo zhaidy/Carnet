@@ -183,7 +183,34 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         }
     }
 
+    /** 对方自己设的称呼收到了 */
+    var onPartnerName: ((String) -> Unit)? = null
+
+    /** 自己的称呼改了：写到每个在同步的账本下面，对方那边跟着变 */
+    fun pushMyName(name: String) {
+        if (!available || name.isBlank()) return
+        scope.launch {
+            runCatching {
+                val uid = signIn()
+                for (l in dao.ledgersNow().filter { it.syncCode != null }) {
+                    book(l.syncCode!!).collection(MEMBERS).document(uid).set(mapOf("name" to name)).await()
+                }
+            }.onFailure { Log.w(TAG, "name push failed", it) }
+        }
+    }
+
     private suspend fun sync(ledgerId: Long, book: DocumentReference, uid: String) = coroutineScope {
+        // 称呼：每个人写自己的（books/{code}/members/{uid}），读对方的
+        launch {
+            Partner.mine.takeIf { it.isNotBlank() }?.let { name ->
+                remote { book.collection(MEMBERS).document(uid).set(mapOf("name" to name)).await() }
+            }
+        }
+        launch {
+            querySnapshots(book.collection(MEMBERS)).collect { snap ->
+                snap.documents.firstOrNull { it.id != uid }?.getString("name")?.takeIf { it.isNotBlank() }?.let { onPartnerName?.invoke(it) }
+            }
+        }
         launch {
             snapshots(book).collect { snap ->
                 setStatus(ledgerId) { SyncStatus(members = (snap.get("members") as? List<*>)?.size, error = null) }
@@ -358,6 +385,7 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         const val BOOKS = "books"
         const val ENTRIES = "entries"
         const val SETTLEMENTS = "settlements"
+        const val MEMBERS = "members"
         const val TIMEOUT_MS = 20_000L
         const val UPLOAD_TIMEOUT_MS = 60_000L
         /** Firestore 一批最多 500 个写入 */
