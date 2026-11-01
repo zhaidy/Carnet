@@ -37,7 +37,9 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         snap.copy(
             rules = rules,
             plan = Cashflow.plan(rules, snap.accounts.map { it.account }, balances, snap.ledgers.map { it.ledger }, snap.rate, LocalDate.now(), snap.entries),
-        )
+        ).let { s ->
+            s.copy(forecast = com.personal.carnet.domain.Forecasts.build(s.plan, s.accounts.map { it.account }, balances, s.ledgers, s.rate, LocalDate.now(), s.entries))
+        }
     }
 
     /** 第一次打开：建好「个人」和「我们俩」两个账本 */

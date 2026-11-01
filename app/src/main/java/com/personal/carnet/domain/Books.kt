@@ -38,6 +38,8 @@ data class Snapshot(
     val monthMySpendingCents: Long,
     val rules: List<RecurringRule> = emptyList(),
     val plan: Plan = Plan(emptyList(), emptyList(), null, null, 0),
+    /** 还款预测：接下来每笔进出之后，能用的钱还剩多少 */
+    val forecast: Forecast? = null,
 )
 
 object Books {
