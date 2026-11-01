@@ -19,6 +19,8 @@ object EntryFactory {
         currency: Currency,
         rate: FxRate,
         timeMillis: Long = System.currentTimeMillis(),
+        /** 共用账本里对方出固定多少，按账本货币；null 是按比例 */
+        herCents: Long? = null,
     ): Entry {
         val paidByHer = kind == EntryKind.EXPENSE && ledger.shared && payer == Payer.HER
         val accountCents = if (paidByHer || account == null) 0 else rate.convert(amountCents, currency, account.currency)
@@ -37,6 +39,7 @@ object EntryFactory {
             accountCents = accountCents,
             ledgerCents = rate.convert(amountCents, currency, ledgerCurrency),
             rate = if (converted) rate.cnyPerSgd else null,
+            herCents = herCents?.takeIf { kind == EntryKind.EXPENSE && ledger.shared },
         )
     }
 

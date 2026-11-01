@@ -112,6 +112,9 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var rateText by rememberSaveable { mutableStateOf(spending?.rate?.let { FxRate.format(it) } ?: "") }
     var rateOpen by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf(e?.note ?: "") }
+    // 共用账本：按账本比例分，还是对方出固定金额（按账本货币）
+    var fixedSplit by rememberSaveable { mutableStateOf(spending?.herCents != null) }
+    var herText by rememberSaveable { mutableStateOf(spending?.herCents?.let { plain(it) } ?: "") }
     var day by rememberSaveable { mutableLongStateOf(e?.let { EntrySearch.dateOf(it).toEpochDay() } ?: LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     var sentence by rememberSaveable { mutableStateOf("") }
@@ -219,19 +222,25 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     add("记进「${ledger.name}」≈ " + Money.format(rate.convert(cents, spend, ledgerCurrency), ledgerCurrency))
                 }
             }
+            val herFixed = if (isGroup && fixedSplit) Money.fromInput(herText) else null
             val splitText = if (isGroup) {
                 val inLedger = rate.convert(cents, spend, ledgerCurrency)
-                val each = Split.myShare(inLedger, ledger.myPercent)
-                "「${ledger.name}」" + (if (ledger.myPercent == 50) "平分 · 各 " else "你出 ${ledger.myPercent}% · ") + Money.format(each, ledgerCurrency)
+                if (herFixed != null) {
+                    "「${ledger.name}」${Partner.name}出 " + Money.format(herFixed, ledgerCurrency) + " · 你出 " + Money.format(Split.myPart(inLedger, herFixed, ledger.myPercent), ledgerCurrency)
+                } else {
+                    val each = Split.myShare(inLedger, ledger.myPercent)
+                    "「${ledger.name}」" + (if (ledger.myPercent == 50) "平分 · 各 " else "你出 ${ledger.myPercent}% · ") + Money.format(each, ledgerCurrency)
+                }
             } else "记到「${ledger.name}」"
 
             fun save(close: Boolean) {
                 if (cents <= 0) { toast.show("先输入金额"); return }
+                if (herFixed != null && herFixed > rate.convert(cents, spend, ledgerCurrency)) { toast.show("${Partner.name}出的比总数还多"); return }
                 vm.saveSpending(
                     kind = if (isIncome) EntryKind.INCOME else EntryKind.EXPENSE,
                     ledger = ledger, account = if (herPaid) null else account, payer = payer,
                     category = cat.key, note = note, amountCents = cents, currency = spend, rate = rate,
-                    timeMillis = time, editing = e,
+                    timeMillis = time, editing = e, herCents = herFixed,
                 )
                 if (e != null) {
                     toast.show("改好了：「${ledger.name}」${Money.format(cents, spend)}")
@@ -242,7 +251,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     append("已记到「${ledger.name}」${Money.format(cents, spend)}")
                     if (isGroup) {
                         val inLedger = rate.convert(cents, spend, ledgerCurrency)
-                        val mine = Split.myShare(inLedger, ledger.myPercent)
+                        val mine = Split.myPart(inLedger, herFixed, ledger.myPercent)
                         append(if (herPaid) " · ${Partner.name}帮你垫了 ${Money.format(mine, ledgerCurrency)}" else " · 你多垫了 ${Money.format(inLedger - mine, ledgerCurrency)}")
                     }
                 }
@@ -348,6 +357,17 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 }
                 if (isGroup) {
                     ChipRow(listOf(Payer.ME to "我", Payer.HER to "${Partner.name}"), payer, "谁付的") { payer = it }
+                    ChipRow(
+                        listOf(false to (if (ledger.myPercent == 50) "平分" else "你出 ${ledger.myPercent}%"), true to "${Partner.name}出固定金额"),
+                        fixedSplit, "怎么分",
+                    ) { fixedSplit = it }
+                    if (fixedSplit) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Label("${Partner.name}出", modifier = Modifier.width(56.dp))
+                            Strong(ledgerCurrency.symbol, size = 15.sp)
+                            GlassField(herText, { herText = it.filter { c -> c.isDigit() || c == '.' } }, "0.00", Modifier.weight(1f), decimal = true)
+                        }
+                    }
                 }
                 if (herPaid) {
                     Label("${Partner.name}付的，不动你的账户，只记${Partner.name}帮你垫了多少", modifier = Modifier.padding(start = 56.dp, top = 6.dp, bottom = 6.dp))

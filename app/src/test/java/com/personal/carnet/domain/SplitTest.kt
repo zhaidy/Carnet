@@ -34,4 +34,17 @@ class SplitTest {
         assertEquals("他补你 S$10.00 就两清", Split.describe(1000, Currency.SGD, "他"))
         assertEquals("你补宝宝 S$10.00 就两清", Split.describe(-1000, Currency.SGD, "宝宝"))
     }
+
+    @Test
+    fun 她出固定金额() {
+        // 房租 3300 我付，她固定出 1200：她补我 1200，我那份 2100
+        val rent = SharedExpense(330000, paidByMe = true, herCents = 120000)
+        assertEquals(210000L, Split.myPart(330000, 120000, 50))
+        assertEquals(120000L, Split.balance(listOf(rent), 50))
+        val s = Split.summary(listOf(rent, SharedExpense(10000, false)), 50)
+        assertEquals(210000L + 5000L, s.myShare)
+        assertEquals(120000L + 5000L, s.herShare)
+        // 填多了按总数封顶
+        assertEquals(0L, Split.myPart(1000, 5000, 50))
+    }
 }

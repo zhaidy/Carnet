@@ -177,8 +177,9 @@ class MainViewModel(
         rate: FxRate,
         timeMillis: Long = System.currentTimeMillis(),
         editing: Entry? = null,
+        herCents: Long? = null,
     ) {
-        val entry = EntryFactory.spending(kind, ledger, account, payer, category, note, amountCents, currency, rate, timeMillis)
+        val entry = EntryFactory.spending(kind, ledger, account, payer, category, note, amountCents, currency, rate, timeMillis, herCents)
         save(entry, editing)
     }
 

@@ -69,13 +69,13 @@ object Books {
     fun balanceBetween(ledger: Ledger, entries: List<Entry>, from: Long, to: Long): Long =
         Split.balance(
             entries.filter { it.ledgerId == ledger.id && it.kind == EntryKind.EXPENSE && it.timeMillis > from && it.timeMillis <= to }
-                .map { SharedExpense(it.ledgerCents, it.payer == Payer.ME) },
+                .map { SharedExpense(it.ledgerCents, it.payer == Payer.ME, it.herCents) },
             ledger.myPercent,
         )
 
     fun sharedBalance(ledger: Ledger, entries: List<Entry>, settlements: List<Settlement>): Long =
         Split.balance(
-            openSharedExpenses(ledger, entries, settlements).map { SharedExpense(it.ledgerCents, it.payer == Payer.ME) },
+            openSharedExpenses(ledger, entries, settlements).map { SharedExpense(it.ledgerCents, it.payer == Payer.ME, it.herCents) },
             ledger.myPercent,
         )
 
@@ -125,7 +125,7 @@ object Books {
             .sumOf { e ->
                 val ledger = ledgersById[e.ledgerId] ?: return@sumOf 0L
                 val currency = ledger.currency ?: MainCurrency
-                val mine = if (ledger.shared) Split.myShare(e.ledgerCents, ledger.myPercent) else e.ledgerCents
+                val mine = if (ledger.shared) Split.myPart(e.ledgerCents, e.herCents, ledger.myPercent) else e.ledgerCents
                 toMain(mine, currency)
             }
 

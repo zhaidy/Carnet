@@ -279,7 +279,7 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         if (settled && ledger.shared && entries.isNotEmpty()) {
             val shared = entries.filter { it.ledgerId == ledger.id && it.kind == EntryKind.EXPENSE }
             val balance = com.personal.carnet.domain.Split.balance(
-                shared.map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == Payer.ME) }, ledger.myPercent,
+                shared.map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == Payer.ME, it.herCents) }, ledger.myPercent,
             )
             dao.insert(Settlement(ledgerId = ledger.id, timeMillis = entries.maxOf { it.timeMillis }, cents = balance))
         }
@@ -324,6 +324,7 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
                     kind = if (rule.kind == RuleKind.EXPENSE) EntryKind.EXPENSE else EntryKind.INCOME,
                     ledger = ledger, account = account, payer = Payer.ME, category = rule.category,
                     note = rule.name, amountCents = rule.amountCents, currency = rule.currency, rate = ctx.rate, timeMillis = time,
+                    herCents = rule.herCents?.let { ctx.rate.convert(it, rule.currency, ledger.currency ?: com.personal.carnet.domain.MainCurrency) },
                 )
             }
             RuleKind.CARD_PAYMENT -> {

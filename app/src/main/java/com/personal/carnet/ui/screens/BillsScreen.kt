@@ -180,7 +180,7 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                     val split = com.personal.carnet.domain.Split.summary(
                         result.days.flatMap { it.entries }
                             .filter { it.kind == EntryKind.EXPENSE && it.ledgerId == shared.id }
-                            .map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == com.personal.carnet.data.Payer.ME) },
+                            .map { com.personal.carnet.domain.SharedExpense(it.ledgerCents, it.payer == com.personal.carnet.data.Payer.ME, it.herCents) },
                         shared.myPercent,
                     )
                     val c = shared.currency ?: MainCurrency

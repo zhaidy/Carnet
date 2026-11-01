@@ -4,7 +4,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 /** 共用账本里的一笔开销，金额已经换成账本货币 */
-data class SharedExpense(val cents: Long, val paidByMe: Boolean)
+data class SharedExpense(val cents: Long, val paidByMe: Boolean, val herCents: Long? = null)
 
 /** 共用账本一段时间里：各自付了多少，各自那份是多少（balance = paidByMe - myShare） */
 data class SplitSummary(val paidByMe: Long, val paidByHer: Long, val myShare: Long, val herShare: Long) {
@@ -20,7 +20,7 @@ object Split {
     fun summary(expenses: List<SharedExpense>, myPercent: Int): SplitSummary {
         val me = expenses.filter { it.paidByMe }.sumOf { it.cents }
         val her = expenses.filter { !it.paidByMe }.sumOf { it.cents }
-        val mine = expenses.sumOf { myShare(it.cents, myPercent) }
+        val mine = expenses.sumOf { myPart(it.cents, it.herCents, myPercent) }
         return SplitSummary(me, her, mine, me + her - mine)
     }
 
@@ -29,14 +29,18 @@ object Split {
         BigDecimal.valueOf(cents).multiply(BigDecimal.valueOf(myPercent.toLong()))
             .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP).toLong()
 
+    /** 一笔里你那份：对方出固定金额时是剩下的，不然按比例 */
+    fun myPart(cents: Long, herCents: Long?, myPercent: Int): Long =
+        herCents?.let { (cents - it).coerceIn(0, cents) } ?: myShare(cents, myPercent)
+
     fun balance(expenses: List<SharedExpense>, myPercent: Int): Long = expenses.sumOf { e ->
-        val mine = myShare(e.cents, myPercent)
+        val mine = myPart(e.cents, e.herCents, myPercent)
         if (e.paidByMe) e.cents - mine else -mine
     }
 
     /** 你自己的花销里，这些共用开销算你多少 */
     fun mySpending(expenses: List<SharedExpense>, myPercent: Int): Long =
-        expenses.sumOf { myShare(it.cents, myPercent) }
+        expenses.sumOf { myPart(it.cents, it.herCents, myPercent) }
 
     /** 给人看的一句话 */
     fun describe(balance: Long, currency: Currency, who: String = "她"): String = when {
