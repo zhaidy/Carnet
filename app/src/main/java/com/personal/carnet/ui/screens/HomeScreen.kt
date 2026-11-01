@@ -1,5 +1,6 @@
 package com.personal.carnet.ui.screens
 
+import androidx.compose.foundation.layout.width
 import com.personal.carnet.ui.Partner
 
 import androidx.compose.animation.core.Animatable
@@ -119,6 +120,9 @@ fun HomeScreen(
             }
         }
         item { NetWorthCard(snapshot, onOpenAccounts, onOpenLedgers, onOpenRecurring) }
+        snapshot.forecast?.takeIf { it.items.any { i -> i.kind == com.personal.carnet.domain.ForecastItem.Kind.CARD } }?.let { f ->
+            item { ForecastCard(f) }
+        }
         val dayAgo = System.currentTimeMillis() - 48 * 3600_000L
         val autoEntries = snapshot.entries.filter { it.id in recentAuto && it.timeMillis > dayAgo }
         if (autoEntries.isNotEmpty()) {
@@ -199,6 +203,63 @@ fun HomeScreen(
             EntryRow(entry.line(accounts, ledgers), onClick = { onOpenEntry(entry) })
         }
     }
+}
+
+/** 还款预测：按日子排开，看每个还款日那天能用的钱够不够 */
+@Composable
+private fun ForecastCard(f: com.personal.carnet.domain.Forecast) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val short = f.firstShort
+    val recovered = f.recovered
+    Column(
+        Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).jelly { open = !open }.padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Strong("还款预测", modifier = Modifier.weight(1f))
+            Label(if (open) "收起" else "展开", size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+        }
+        if (short == null) {
+            Strong("接下来 ${f.until.monthValue}/${f.until.dayOfMonth} 前的卡都还得上 ✓", size = 14.sp, color = Palette.Teal)
+        } else {
+            Strong(
+                "${short.date.monthValue}/${short.date.dayOfMonth} " + forecastLabel(short) + " 后差 " + Money.format(-short.balance, MainCurrency),
+                size = 14.sp, color = Palette.Rose,
+            )
+            Label(
+                recovered?.let { "${it.date.monthValue}/${it.date.dayOfMonth} " + forecastLabel(it) + " 之后就够了" } ?: "${f.until.monthValue}/${f.until.dayOfMonth} 前都不够",
+                size = 12.sp, weight = FontWeight.Medium,
+            )
+        }
+        if (open) {
+            Row {
+                Label("现在能用", size = 12.sp, modifier = Modifier.weight(1f))
+                Label(Money.format(f.start, MainCurrency), size = 12.sp, weight = FontWeight.Bold)
+            }
+            f.items.forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Label("${item.date.monthValue}/${item.date.dayOfMonth}", size = 12.sp, weight = FontWeight.Bold, modifier = Modifier.width(40.dp))
+                    Label(forecastLabel(item), size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.weight(1f))
+                    Label(
+                        (if (item.cents > 0) "+" else "") + Money.format(item.cents, MainCurrency),
+                        size = 12.sp, weight = FontWeight.Bold, color = if (item.cents > 0) Palette.Teal else Palette.Ink,
+                    )
+                    Label(
+                        Money.format(item.balance, MainCurrency), size = 12.sp, weight = FontWeight.Bold,
+                        color = if (item.balance < 0) Palette.Rose else Palette.Muted, modifier = Modifier.width(92.dp),
+                    )
+                }
+            }
+            Label("同一天先算进账；她转的钱按账本的结算日算，记账时设的「她出多少」也算进去。", size = 11.sp, weight = FontWeight.Medium)
+        }
+    }
+}
+
+private fun forecastLabel(item: com.personal.carnet.domain.ForecastItem): String = when (item.kind) {
+    com.personal.carnet.domain.ForecastItem.Kind.CARD -> "还" + item.name.removePrefix("还")
+    com.personal.carnet.domain.ForecastItem.Kind.FIXED -> item.name
+    com.personal.carnet.domain.ForecastItem.Kind.SETTLE ->
+        if (item.cents > 0) "${Partner.name}转「${item.name}」" else "补给${Partner.name}「${item.name}」"
 }
 
 @Composable

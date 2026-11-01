@@ -194,4 +194,37 @@ class CashflowTest {
         assertEquals(listOf("房租", "11/13 还卡A"), parts.drop(1).map { it.first })
         assertEquals(plan.spendableCents, parts.first().second - parts.drop(1).sumOf { it.second })
     }
+
+    @Test
+    fun 还款预测按日子排开() {
+        // 今天 10/31：储蓄卡 8420.50；卡A 13 号还、欠 1102.30；11/20 房租 1800；11/26 工资 5800
+        val yuu = cardA.copy(dueDay = 13)
+        val accts = listOf(bank, yuu, icbc)
+        val plan = Cashflow.plan(listOf(salary, rent), accts, balances, listOf(us), rate, today)
+        val ledgerViews = listOf(LedgerView(us.copy(settleMode = com.personal.carnet.data.SettleMode.MONTHLY, settleDay = 26), 0, 0, null))
+        val f = Forecasts.build(plan, accts, balances, ledgerViews, rate, today, emptyList())
+        assertEquals(842050L, f.start)
+        assertEquals(listOf("卡A", "房租", "工资"), f.items.map { it.name })
+        assertEquals(842050L - 110230L, f.items[0].balance)
+        assertNull(f.firstShort)
+        // 钱不够：储蓄卡只有 1000，11/13 还卡就不够，11/26 工资后够
+        val poor = balances + (1L to 100000L)
+        val p2 = Cashflow.plan(listOf(salary, rent), accts, poor, listOf(us), rate, today)
+        val f2 = Forecasts.build(p2, accts, poor, ledgerViews, rate, today, emptyList())
+        assertEquals("卡A", f2.firstShort?.name)
+        assertEquals("工资", f2.recovered?.name)
+    }
+
+    @Test
+    fun 还款预测算上她按结算日转的钱() {
+        // 房租 3300 记在共用账本，她固定出 1200，账本每月 26 号结
+        val rentShared = rule("房租", RuleKind.EXPENSE, 20, 330000, ledger = us.id).copy(herCents = 120000)
+        val ledger = us.copy(settleMode = com.personal.carnet.data.SettleMode.MONTHLY, settleDay = 26)
+        val plan = Cashflow.plan(listOf(rentShared), accounts, balances, listOf(ledger), rate, today)
+        val f = Forecasts.build(plan, accounts, balances, listOf(LedgerView(ledger, 0, 2529, null)), rate, today, emptyList())
+        val settle = f.items.first { it.kind == ForecastItem.Kind.SETTLE }
+        assertEquals(LocalDate.of(2026, 11, 26), settle.date)
+        // 现在她欠的 25.29 + 房租里她那份 1200
+        assertEquals(2529L + 120000L, settle.cents)
+    }
 }
