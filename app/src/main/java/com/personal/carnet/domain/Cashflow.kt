@@ -33,10 +33,6 @@ data class Plan(
     val spendableCents: Long?,
     /** 每月固定支出里你那份，按主货币 */
     val monthlyFixedCents: Long,
-    /** 下次发薪前（没设工资就到月底）还要付的固定支出：你那份、主货币；不含还卡（卡上欠的已经算进净资产了） */
-    val committedCents: Long = 0,
-    val committed: List<Occurrence> = emptyList(),
-    val committedUntil: LocalDate? = null,
 )
 
 object Cashflow {
@@ -70,6 +66,11 @@ object Cashflow {
     ): Long {
         val owedNow = cardOwed(rule, balances)
         if (card == null) return owedNow
+        return cardDueOn(card, due, owedNow, entries, today, zone)
+    }
+
+    /** 同上，没有还卡规则时用卡上设的还款日、账单日算；owedNow 是卡上现在欠的 */
+    fun cardDueOn(card: Account, due: LocalDate, owedNow: Long, entries: List<Entry>, today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Long {
         val statement = statementDate(card, due) ?: return owedNow
         if (!statement.isBefore(today)) return owedNow
         val cut = statement.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -81,6 +82,18 @@ object Cashflow {
             if (e.timeMillis < cut) atCut += d else if (d > 0) paidAfter += d
         }
         return (-atCut - paidAfter).coerceIn(0, owedNow)
+    }
+
+    /** 今天之后（不含今天）下一个还款日；没设还款日是 null */
+    fun nextDueDate(card: Account, today: LocalDate): LocalDate? {
+        val day = card.dueDay ?: return null
+        var month = YearMonth.from(today)
+        repeat(2) {
+            val date = month.atDay(day.coerceIn(1, month.lengthOfMonth()))
+            if (date.isAfter(today)) return date
+            month = month.plusMonths(1)
+        }
+        return null
     }
 
     /** 最近一次已经出了的账单日（今天之前）；没设账单日是 null */
@@ -181,7 +194,15 @@ object Cashflow {
             val out = (pending + upcoming)
                 .filter { !it.inflow && !it.date.isAfter(pay) && it.rule.accountId in cashIds }
                 .sumOf { rate.convert(it.cents, it.currency, MainCurrency) }
-            have - out
+            // 没建还卡规则的信用卡：按卡上设的还款日，发薪前要还的也扣掉
+            val ruled = active.filter { it.kind == RuleKind.CARD_PAYMENT }.mapNotNull { it.toAccountId }.toSet()
+            val cards = accounts.filter { it.type == AccountType.CREDIT && it.id !in ruled }.sumOf { card ->
+                val due = nextDueDate(card, today)
+                val owedNow = (-(balances[card.id] ?: 0L)).coerceAtLeast(0)
+                if (due == null || due.isAfter(pay) || owedNow == 0L) 0L
+                else rate.convert(cardDueOn(card, due, owedNow, entries, today), card.currency, MainCurrency)
+            }
+            have - out - cards
         }
 
         val ledgerById = ledgers.associateBy { it.id }
@@ -192,15 +213,6 @@ object Cashflow {
             rate.convert(mine, rule.currency, MainCurrency)
         }
 
-        // 净资产要扣的：发薪前（没设工资就到月底）还没付的固定支出，共用账本只算你那份
-        val until = payday ?: YearMonth.from(today).atEndOfMonth()
-        val committed = (pending + upcoming).filter { it.rule.kind == RuleKind.EXPENSE && !it.date.isAfter(until) }
-        val committedCents = committed.sumOf { occ ->
-            val ledger = ledgerById[occ.rule.ledgerId]
-            val mine = if (ledger?.shared == true) Split.myShare(occ.cents, ledger.myPercent) else occ.cents
-            rate.convert(mine, occ.currency, MainCurrency)
-        }
-
-        return Plan(pending, upcoming, payday, spendable, monthly, committedCents, committed, until)
+        return Plan(pending, upcoming, payday, spendable, monthly)
     }
 }

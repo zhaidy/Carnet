@@ -38,10 +38,7 @@ data class Snapshot(
     val monthMySpendingCents: Long,
     val rules: List<RecurringRule> = emptyList(),
     val plan: Plan = Plan(emptyList(), emptyList(), null, null, 0),
-) {
-    /** 净资产：账面的再扣掉发薪前（或月底前）还要付的固定支出 */
-    val netWorthAfterFixedCents: Long get() = netWorthCents - plan.committedCents
-}
+)
 
 object Books {
 
