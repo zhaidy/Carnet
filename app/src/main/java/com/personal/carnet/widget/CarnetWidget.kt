@@ -28,6 +28,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -41,7 +42,8 @@ import com.personal.carnet.R
  * 桌面小组件，能横竖拖大小：
  * - 最小一条：还能花多少
  * - 中等：再加这个月花了、谁补谁
- * - 大的：再加接下来的固定收支和「记一笔」
+ * - 大的：再加接下来的固定收支
+ * 每个大小都有「记一笔」
  */
 class CarnetWidget : GlanceAppWidget() {
 
@@ -68,19 +70,19 @@ class CarnetWidget : GlanceAppWidget() {
                 return@Box
             }
             when {
-                size.height < MEDIUM.height || size.width < MEDIUM.width -> Small(data)
+                size.height < MEDIUM.height || size.width < MEDIUM.width -> Small(data, add)
                 size.height < LARGE.height || size.width < LARGE.width -> Column(GlanceModifier.fillMaxSize()) {
-                    Headline(data)
+                    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                        Column(GlanceModifier.defaultWeight()) { Headline(data) }
+                        AddButton(add, compact = true)
+                    }
                     Spacer(GlanceModifier.defaultWeight())
                     Stats(data)
                 }
                 else -> Column(GlanceModifier.fillMaxSize()) {
                     Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                         Column(GlanceModifier.defaultWeight()) { Headline(data) }
-                        Box(
-                            GlanceModifier.background(ImageProvider(R.drawable.widget_cta)).cornerRadius(14.dp)
-                                .clickable(actionStartActivity(add)).padding(horizontal = 12.dp, vertical = 7.dp),
-                        ) { Text("＋ 记一笔", style = TextStyle(color = WHITE, fontSize = 13.sp, fontWeight = FontWeight.Bold)) }
+                        AddButton(add, compact = false)
                     }
                     Spacer(GlanceModifier.height(8.dp))
                     Stats(data)
@@ -103,11 +105,27 @@ class CarnetWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun Small(data: WidgetData) {
+    private fun Small(data: WidgetData, add: Intent) {
         Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Text(data.headlineLabel.substringAfter(" "), style = TextStyle(color = MUTED, fontSize = 12.sp), maxLines = 1)
+            Column(GlanceModifier.defaultWeight()) {
+                Text(data.headlineLabel.substringAfter(" "), style = TextStyle(color = MUTED, fontSize = 11.sp), maxLines = 1)
+                Text(data.headline, style = TextStyle(color = INK, fontSize = 17.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            }
             Spacer(GlanceModifier.width(6.dp))
-            Text(data.headline, style = TextStyle(color = INK, fontSize = 17.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+            AddButton(add, compact = true)
+        }
+    }
+
+    /** 记一笔：大的写字，小的只有一个「＋」 */
+    @Composable
+    private fun AddButton(add: Intent, compact: Boolean) {
+        Box(
+            GlanceModifier.background(ImageProvider(R.drawable.widget_cta)).cornerRadius(if (compact) 18.dp else 14.dp)
+                .clickable(actionStartActivity(add))
+                .then(if (compact) GlanceModifier.size(36.dp) else GlanceModifier.padding(horizontal = 12.dp, vertical = 7.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(if (compact) "＋" else "＋ 记一笔", style = TextStyle(color = WHITE, fontSize = if (compact) 18.sp else 13.sp, fontWeight = FontWeight.Bold))
         }
     }
 
