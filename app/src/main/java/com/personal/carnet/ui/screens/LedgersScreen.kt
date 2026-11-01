@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,7 +91,7 @@ fun LedgersScreen(
             item {
                 GlassCard(padding = 14.dp) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Strong("用她给的邀请码加入")
+                        Strong("用${Partner.name}给的邀请码加入")
                         GlassField(code, { code = it.uppercase() }, "6 位邀请码", Modifier.fillMaxWidth(), fontSize = 18.sp)
                         CtaButton("加入") {
                             scope.launch {
@@ -123,7 +125,7 @@ fun LedgersScreen(
                     scope.launch {
                         try {
                             val c = vm.invite(view.ledger)
-                            toast.show("邀请码 $c，让她在 Carnet 的账本页点「加入」")
+                            toast.show("邀请码 $c，让${Partner.name}在 Carnet 的账本页点「加入」")
                         } catch (e: SyncException) {
                             toast.show(e.message ?: "邀请失败")
                         }
@@ -196,7 +198,7 @@ private fun LedgerCard(
             if (l.shared) {
                 Box(Modifier.size(width = 50.dp, height = 34.dp)) {
                     Avatar("我", her = false)
-                    Box(Modifier.padding(start = 18.dp)) { Avatar("她", her = true) }
+                    Box(Modifier.padding(start = 18.dp)) { Avatar(Partner.initial, her = true) }
                 }
             } else {
                 Avatar("我", her = false, size = 40.dp)
@@ -223,7 +225,7 @@ private fun LedgerCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Strong(Split.describe(view.balanceCents, view.currency), size = 14.sp, color = if (view.balanceCents > 0) Palette.Rose else Palette.Ink)
+                    Strong(Split.describe(view.balanceCents, view.currency, Partner.name), size = 14.sp, color = if (view.balanceCents > 0) Palette.Rose else Palette.Ink)
                     if (lastDate == null && view.periodCents > 0 && !confirming) {
                         Row(
                             Modifier.jelly { picking = true }.padding(vertical = 2.dp),
@@ -280,16 +282,17 @@ private fun LedgerCard(
                 Column(Modifier.weight(1f)) {
                     when {
                         syncCode != null -> {
-                            Label("和她同步中 · 邀请码 $syncCode" + (syncStatus?.members?.let { " · $it 台手机" } ?: ""), size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            Label("和${Partner.name}同步中 · 邀请码 $syncCode" + (syncStatus?.members?.let { " · $it 台手机" } ?: ""), size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            syncStatus?.uploading?.let { Label("正在上传 $it 笔，新的先传；Carnet 开着就会一直传", size = 11.sp, weight = FontWeight.Medium) }
                             syncStatus?.error?.let { Label(it, size = 11.sp, color = Palette.Rose) }
                         }
-                        syncAvailable -> Label("还没和她同步：她那边看不到这些账", size = 12.sp, weight = FontWeight.Medium)
-                        else -> Label("这个版本还没接上 Firebase，暂时不能和她同步", size = 12.sp, weight = FontWeight.Medium)
+                        syncAvailable -> Label("还没和${Partner.name}同步：${Partner.name}那边看不到这些账", size = 12.sp, weight = FontWeight.Medium)
+                        else -> Label("这个版本还没接上 Firebase，暂时不能和${Partner.name}同步", size = 12.sp, weight = FontWeight.Medium)
                     }
                 }
                 if (syncCode == null && syncAvailable) {
                     Box(Modifier.glassControl().jelly(onClick = onInvite).padding(horizontal = 14.dp, vertical = 9.dp)) {
-                        Strong("邀请她", size = 13.sp, color = Palette.Violet)
+                        Strong("邀请${Partner.name}", size = 13.sp, color = Palette.Violet)
                     }
                 } else if (syncCode != null) {
                     Box(Modifier.glassControl().jelly(onClick = onLeave).padding(horizontal = 12.dp, vertical = 9.dp)) {

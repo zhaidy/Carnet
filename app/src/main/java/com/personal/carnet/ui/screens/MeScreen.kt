@@ -1,5 +1,6 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,7 +68,33 @@ fun MeScreen(
         item { MenuRow(IconPaths.SPARKLE_LINE, "自动记账和 Claude", "Google 钱包付款自动记一笔；Claude API Key", onOpenAuto) }
         item { MenuRow(IconPaths.IMPORT, "导入随手记", "选随手记导出的 Excel 或 CSV", onOpenImport) }
         item { MenuRow(IconPaths.SWAP, "默认汇率", "1 S$ = ¥" + FxRate.format(snapshot.rate.cnyPerSgd) + " · 在账户页改", onOpenAccounts) }
+        item { PartnerCard() }
         item { UpdateCard(update, currentBuild, onCheckUpdate, onInstall) }
+    }
+}
+
+/** 对方怎么称呼：她的手机上改成「他」 */
+@Composable
+private fun PartnerCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var custom by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Strong("对方的称呼")
+        Label("界面上的「${Partner.name}付」「${Partner.name}补你」「邀请${Partner.name}」都用这个。她的手机上选「他」。", size = 12.sp, weight = FontWeight.Medium)
+        com.personal.carnet.ui.components.ChipRow(listOf("她" to "她", "他" to "他"), Partner.name.takeIf { it == "她" || it == "他" }) {
+            Partner.set(context, it)
+            custom = ""
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.personal.carnet.ui.components.GlassField(
+                custom, { custom = it.take(Partner.MAX) },
+                if (Partner.name != "她" && Partner.name != "他") "现在是「${Partner.name}」" else "或者自己起个称呼，比如 宝宝",
+                Modifier.weight(1f),
+            )
+            Box(Modifier.glass(RoundedCornerShape(14.dp)).jelly {
+                if (custom.isNotBlank()) { Partner.set(context, custom); custom = "" }
+            }.padding(horizontal = 14.dp, vertical = 10.dp)) { Strong("用这个", size = 13.sp, color = Palette.Violet) }
+        }
     }
 }
 

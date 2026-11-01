@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,9 +98,9 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     val dayLabel = if (day == 31) "月底" else "$day 号"
     val rate = vm.defaultRate.value
     val summary = buildString {
-        append(if (withHer) "你和她 · " else "只有你 · ")
+        append(if (withHer) "你和${Partner.name} · " else "只有你 · ")
         if (withHer) {
-            append(if (!ratio) "平分" else "我 $myPercent% · 她 ${100 - myPercent}%")
+            append(if (!ratio) "平分" else "我 $myPercent% · ${Partner.name} ${100 - myPercent}%")
             append(
                 when (mode) {
                     SettleMode.MONTHLY -> " · 每月${if (day == 31) "月底" else "${day}号"}结"
@@ -139,7 +141,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(width = if (withHer) 50.dp else 32.dp, height = 32.dp)) {
                         Avatar("我", her = false)
-                        if (withHer) Box(Modifier.padding(start = 18.dp)) { Avatar("她", her = true) }
+                        if (withHer) Box(Modifier.padding(start = 18.dp)) { Avatar(Partner.initial, her = true) }
                     }
                     Label(summary, size = 13.sp, color = Palette.Ink)
                 }
@@ -172,10 +174,10 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Strong("和她一起", size = 14.sp)
+                            Strong("和${Partner.name}一起", size = 14.sp)
                             Label(if (withHer) "要 AA 的账本" else "只有你自己", size = 12.sp, weight = FontWeight.Medium)
                         }
-                        if (old?.syncCode == null) GlassSwitch(withHer, "和她一起") { withHer = it }
+                        if (old?.syncCode == null) GlassSwitch(withHer, "和${Partner.name}一起") { withHer = it }
                     }
                     if (withHer) {
                         ChipRow(listOf(false to "平分", true to "按比例"), ratio, "怎么分") { ratio = it }
@@ -215,7 +217,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
             }
         }
         if (old?.syncCode != null) {
-            Label("在和她同步：这里改的只改你这边，她那边要她自己改。", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 20.dp))
+            Label("在和${Partner.name}同步：这里改的只改你这边，${Partner.name}那边要${Partner.name}自己改。", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 20.dp))
         }
         if (old != null && confirmDelete) {
             Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {

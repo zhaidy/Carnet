@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -184,13 +186,13 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                     val c = shared.currency ?: MainCurrency
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SplitCell("我付了", Money.format(split.paidByMe, c), "我的那份 " + Money.format(split.myShare, c), Modifier.weight(1f))
-                        SplitCell("她付了", Money.format(split.paidByHer, c), "她的那份 " + Money.format(split.herShare, c), Modifier.weight(1f))
+                        SplitCell("${Partner.name}付了", Money.format(split.paidByHer, c), "${Partner.name}的那份 " + Money.format(split.herShare, c), Modifier.weight(1f))
                     }
                     val diff = split.paidByMe - split.myShare
                     Label(
                         when {
                             diff > 0 -> "这段时间你多垫了 " + Money.format(diff, c)
-                            diff < 0 -> "这段时间她多垫了 " + Money.format(-diff, c)
+                            diff < 0 -> "这段时间${Partner.name}多垫了 " + Money.format(-diff, c)
                             else -> "这段时间正好一人一半"
                         } + "（只算这里筛出来的账，结算看账本页）",
                         size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet,

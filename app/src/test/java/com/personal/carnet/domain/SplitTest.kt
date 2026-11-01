@@ -27,4 +27,11 @@ class SplitTest {
         assertEquals(s.total, s.myShare + s.herShare)
         assertEquals(Split.balance(listOf(SharedExpense(10000, true), SharedExpense(6000, false), SharedExpense(4001, true)), 50), s.paidByMe - s.myShare)
     }
+
+    @Test
+    fun 对方的称呼可以换() {
+        assertEquals("她补你 S$10.00 就两清", Split.describe(1000, Currency.SGD))
+        assertEquals("他补你 S$10.00 就两清", Split.describe(1000, Currency.SGD, "他"))
+        assertEquals("你补宝宝 S$10.00 就两清", Split.describe(-1000, Currency.SGD, "宝宝"))
+    }
 }

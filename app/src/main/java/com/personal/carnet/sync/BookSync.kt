@@ -1,5 +1,7 @@
 package com.personal.carnet.sync
 
+import com.personal.carnet.ui.Partner
+
 import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -41,7 +43,8 @@ import java.util.UUID
 
 class SyncException(message: String) : Exception(message)
 
-data class SyncStatus(val members: Int? = null, val error: String? = null)
+/** uploading：还有多少笔没传上去（正在传的时候才有） */
+data class SyncStatus(val members: Int? = null, val error: String? = null, val uploading: Int? = null)
 
 /**
  * 共用账本和她同步。云端是 books/{邀请码}（成员、账本名、货币、各自出几成、怎么结），
@@ -99,6 +102,15 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
             book(code).get().await()
         }
         val ledger = ledgerFrom(snap, code, uid)
+        // 第一次打开时自动建的那个空「我们俩」就直接用，不再多建一个
+        val empty = dao.ledgersNow().firstOrNull { l ->
+            l.shared && l.syncCode == null && dao.entriesInLedger(l.id) == 0 && dao.settlementsInNow(l.id).isEmpty()
+        }
+        if (empty != null) {
+            val reused = ledger.copy(id = empty.id, createdAt = empty.createdAt)
+            dao.update(reused)
+            return reused
+        }
         val id = dao.insert(ledger)
         return ledger.copy(id = id)
     }
@@ -189,14 +201,29 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
                 }
             }
         }
-        // 本机 → 云端：还没有 syncId 的就是新记的
+        // 本机 → 云端：还没有 syncId 的就是新记的。新的先传，一批 400 笔
         launch {
             dao.entriesIn(ledgerId).collect { entries ->
-                for (entry in entries.filter { it.syncId == null }) {
-                    val syncId = UUID.randomUUID().toString()
-                    dao.update(entry.copy(syncId = syncId))
-                    remote { book.collection(ENTRIES).document(syncId).set(SyncedEntry.toMap(entry, uid)).await() }
+                val pending = entries.filter { it.syncId == null }.sortedByDescending { it.timeMillis }
+                var left = pending.size
+                for (chunk in pending.chunked(BATCH)) {
+                    setStatus(ledgerId) { it.copy(uploading = left) }
+                    // 先在本机记上 syncId，云端的回音回来时才认得是自己这笔，不会再插一遍
+                    val withIds = chunk.map { it.copy(syncId = UUID.randomUUID().toString()) }
+                    dao.updateEntries(withIds)
+                    val batch = firestore.batch()
+                    withIds.forEach { batch.set(book.collection(ENTRIES).document(it.syncId!!), SyncedEntry.toMap(it, uid)) }
+                    try {
+                        withTimeout(UPLOAD_TIMEOUT_MS) { batch.commit().await() }
+                    } catch (e: TimeoutCancellationException) {
+                        // 没网时这批留在 Firestore 本地的队列里，联网后它自己会传上去
+                    } catch (e: FirebaseFirestoreException) {
+                        dao.updateEntries(chunk)
+                        throw SyncException("上传失败：${e.message}")
+                    }
+                    left -= chunk.size
                 }
+                if (pending.isNotEmpty()) setStatus(ledgerId) { it.copy(uploading = null) }
             }
         }
         launch {
@@ -278,7 +305,7 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
     private fun book(code: String) = firestore.collection(BOOKS).document(code)
 
     private fun requireAvailable() {
-        if (!available) throw SyncException("这个版本还没接上 Firebase，暂时不能和她同步")
+        if (!available) throw SyncException("这个版本还没接上 Firebase，暂时不能和${Partner.name}同步")
     }
 
     private suspend fun signIn(): String = remote {
@@ -327,6 +354,9 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         const val ENTRIES = "entries"
         const val SETTLEMENTS = "settlements"
         const val TIMEOUT_MS = 20_000L
+        const val UPLOAD_TIMEOUT_MS = 60_000L
+        /** Firestore 一批最多 500 个写入 */
+        const val BATCH = 400
         const val RETRY_MS = 30_000L
     }
 }
