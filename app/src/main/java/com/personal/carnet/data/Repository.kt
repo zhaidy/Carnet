@@ -133,7 +133,12 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         val ledger = dao.ledgersNow().firstOrNull { it.id == ledgerId } ?: return
         val rate = entry.rate?.let { FxRate(it) } ?: prefs.defaultRate.value
         val ledgerCurrency = ledger.currency ?: com.personal.carnet.domain.MainCurrency
-        updateEntry(entry.copy(ledgerId = ledger.id, ledgerCents = rate.convert(entry.amountCents, entry.currency, ledgerCurrency)))
+        updateEntry(
+            entry.copy(
+                ledgerId = ledger.id, ledgerCents = rate.convert(entry.amountCents, entry.currency, ledgerCurrency),
+                herCents = if (ledger.shared && entry.kind == EntryKind.EXPENSE) ledger.herFixedCents else null,
+            ),
+        )
     }
 
     /** 自动记账「算我们俩的」：放进第一个共用账本 */
@@ -324,7 +329,9 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
                     kind = if (rule.kind == RuleKind.EXPENSE) EntryKind.EXPENSE else EntryKind.INCOME,
                     ledger = ledger, account = account, payer = Payer.ME, category = rule.category,
                     note = rule.name, amountCents = rule.amountCents, currency = rule.currency, rate = ctx.rate, timeMillis = time,
-                    herCents = rule.herCents?.let { ctx.rate.convert(it, rule.currency, ledger.currency ?: com.personal.carnet.domain.MainCurrency) },
+                    // 这条自己设了就用自己的，没设用账本的默认
+                    herCents = rule.herCents?.let { ctx.rate.convert(it, rule.currency, ledger.currency ?: com.personal.carnet.domain.MainCurrency) }
+                        ?: ledger.herFixedCents,
                 )
             }
             RuleKind.CARD_PAYMENT -> {

@@ -240,7 +240,12 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
                         }
                     }
                     if (kind == RuleKind.EXPENSE) {
-                        ChipRow(ledgers.map { it.id to it.name }, ledgerId, "记到") { ledgerId = it }
+                        ChipRow(ledgers.map { it.id to it.name }, ledgerId, "记到") { id ->
+                            ledgerId = id
+                            val l = ledgers.first { it.id == id }
+                            fixedSplit = l.herFixedCents != null
+                            herText = l.herFixedCents?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: ""
+                        }
                         val chosen = ledgers.firstOrNull { it.id == ledgerId }
                         if (chosen?.shared == true) {
                             ChipRow(

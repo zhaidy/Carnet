@@ -353,6 +353,9 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                         ledgerId = id
                         val l = ledgers.first { it.id == id }
                         spend = l.currency ?: account.currency
+                        // 账本设了「对方出固定金额」就默认带上
+                        fixedSplit = l.herFixedCents != null
+                        herText = l.herFixedCents?.let { plain(it) } ?: ""
                     }
                 }
                 if (isGroup) {

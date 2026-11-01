@@ -185,4 +185,13 @@ class CashflowTest {
         val plan = Cashflow.plan(listOf(rent), accounts, balances, listOf(us), rate, today)
         assertEquals(210000L, plan.monthlyFixedCents)
     }
+
+    @Test
+    fun 发薪前还能花拆开() {
+        val plan = Cashflow.plan(listOf(salary, rent), listOf(bank, cardA.copy(dueDay = 13), icbc), balances, listOf(us), rate, today)
+        val parts = plan.spendableParts
+        assertEquals("能用的账户" to 842050L, parts.first())
+        assertEquals(listOf("房租", "11/13 还卡A"), parts.drop(1).map { it.first })
+        assertEquals(plan.spendableCents, parts.first().second - parts.drop(1).sumOf { it.second })
+    }
 }

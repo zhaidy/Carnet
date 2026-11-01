@@ -41,6 +41,7 @@ import com.personal.carnet.data.SettleMode
 import com.personal.carnet.domain.Currency
 import com.personal.carnet.domain.FxRate
 import com.personal.carnet.domain.MainCurrency
+import com.personal.carnet.domain.Money
 import com.personal.carnet.ui.IconPaths
 import com.personal.carnet.ui.MainViewModel
 import com.personal.carnet.ui.components.Avatar
@@ -75,6 +76,12 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     var withHer by rememberSaveable { mutableStateOf(old?.shared ?: true) }
     var ratio by rememberSaveable { mutableStateOf(old != null && old.myPercent != 50) }
     var myPercent by rememberSaveable { mutableIntStateOf(old?.myPercent ?: 50) }
+    // 对方每笔出固定金额（比如房租她出固定一部分）
+    var fixed by rememberSaveable { mutableStateOf(old?.herFixedCents != null) }
+    var herText by rememberSaveable {
+        mutableStateOf(old?.herFixedCents?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: "")
+    }
+    val herFixed = if (fixed) Money.fromInput(herText).takeIf { it > 0 } else null
     var mode by rememberSaveable { mutableStateOf(old?.settleMode ?: SettleMode.DATE) }
     var day by rememberSaveable { mutableIntStateOf(old?.settleDay ?: 31) }
     var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
@@ -103,7 +110,13 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     val summary = buildString {
         append(if (withHer) "你和${Partner.name} · " else "只有你 · ")
         if (withHer) {
-            append(if (!ratio) "平分" else "我 $myPercent% · ${Partner.name} ${100 - myPercent}%")
+            append(
+                when {
+                    fixed -> "${Partner.name}每笔出 " + (herFixed?.let { Money.format(it, currency ?: MainCurrency) } ?: "固定金额") + "，剩下的是你的"
+                    !ratio -> "平分"
+                    else -> "我 $myPercent% · ${Partner.name} ${100 - myPercent}%"
+                },
+            )
             append(
                 when (mode) {
                     SettleMode.MONTHLY -> " · 每月${if (day == 31) "月底" else "${day}号"}结"
@@ -183,7 +196,21 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                         if (old?.syncCode == null) GlassSwitch(withHer, "和${Partner.name}一起") { withHer = it }
                     }
                     if (withHer) {
-                        ChipRow(listOf(false to "平分", true to "按比例"), ratio, "怎么分") { ratio = it }
+                        ChipRow(
+                            listOf(0 to "平分", 1 to "按比例", 2 to "${Partner.name}出固定金额"),
+                            if (fixed) 2 else if (ratio) 1 else 0, "怎么分",
+                        ) {
+                            fixed = it == 2
+                            ratio = it == 1
+                        }
+                        if (fixed) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Label("${Partner.name}出", modifier = Modifier.width(56.dp))
+                                Strong((currency ?: MainCurrency).symbol, size = 15.sp)
+                                GlassField(herText, { herText = it.filter { c -> c.isDigit() || c == '.' } }, "每笔出多少", Modifier.weight(1f), decimal = true, fontSize = 17.sp)
+                            }
+                            Label("记到这个账本的每一笔，默认${Partner.name}出这么多、剩下的是你的；记账时还能单独改。适合房租这种${Partner.name}每月出固定一部分的。", size = 12.sp, weight = FontWeight.Medium)
+                        }
                         if (ratio) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Label("你出", modifier = Modifier.weight(1f))
@@ -257,12 +284,15 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
             CtaButton(if (old != null) "保存" else "建好账本", Modifier.weight(1f)) {
                 if (name.isBlank()) {
                     toast.show("先给账本起个名字")
+                } else if (withHer && fixed && herFixed == null) {
+                    toast.show("先填${Partner.name}每笔出多少")
                 } else if (old != null) {
                     vm.updateLedger(
                         old.copy(
                             name = name.trim(),
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
+                            herFixedCents = if (withHer) herFixed else null,
                             settleMode = mode,
                             settleDay = day,
                             settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,
@@ -277,6 +307,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             currency = currency,
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
+                            herFixedCents = if (withHer) herFixed else null,
                             settleMode = mode,
                             settleDay = day,
                             settleEpochDay = if (mode == SettleMode.DATE) epochDay else null,

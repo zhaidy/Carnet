@@ -87,4 +87,17 @@ class MigrationTest {
             assertEquals(table, expected, migrated)
         }
     }
+
+    @Test
+    fun 第六版加的账本固定金额和导出的一样() {
+        val added = CarnetDatabase.MIGRATION_5_6_SQL.map { sql ->
+            val m = Regex("""ALTER TABLE `(\w+)` ADD COLUMN `(\w+)` (\w+)( NOT NULL)?""").find(sql)!!.groupValues
+            Triple(m[1], m[2], m[3] to m[4].isNotEmpty())
+        }
+        for (table in listOf("accounts", "ledgers", "entries", "settlements", "recurring_rules")) {
+            val expected = columns(6, table)
+            val migrated = columns(5, table) + added.filter { it.first == table }.associate { it.second to it.third }
+            assertEquals(table, expected, migrated)
+        }
+    }
 }
