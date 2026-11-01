@@ -51,6 +51,7 @@ class CarnetApp : Application() {
         super.onCreate()
         com.personal.carnet.ui.Partner.load(this)
         com.personal.carnet.ui.CustomCategories.load(this)
+        com.personal.carnet.ui.AddDefaults.load(this)
         // 自己的称呼改了就同步给对方
         appScope.launch {
             androidx.compose.runtime.snapshotFlow { com.personal.carnet.ui.Partner.mine }
