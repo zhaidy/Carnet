@@ -163,4 +163,20 @@ class CashflowTest {
         val (from, to) = Cashflow.statementPeriod(19, today)
         assertEquals(listOf(2L, 3L), Cashflow.cardCharges(2, entries, from, to, zone).map { it.id })
     }
+
+    @Test
+    fun 净资产扣掉发薪前的固定支出() {
+        val sharedRent = rule("房租", RuleKind.EXPENSE, 20, 180000, ledger = us.id)
+        val netflix = rule("Netflix", RuleKind.EXPENSE, 5, 1599)
+        val after = rule("下个月的", RuleKind.EXPENSE, 28, 5000)
+        val plan = Cashflow.plan(listOf(salary, sharedRent, netflix, after, payA), accounts, balances, listOf(us), rate, today)
+        // 11/26 发薪前：房租你那半 900 + Netflix 15.99；还卡不算（欠的已经在净资产里），11/28 的在发薪后
+        assertEquals(LocalDate.of(2026, 11, 26), plan.committedUntil)
+        assertEquals(90000L + 1599L, plan.committedCents)
+        assertEquals(listOf("Netflix", "房租"), plan.committed.map { it.rule.name })
+        // 没设工资：算到月底
+        val noSalary = Cashflow.plan(listOf(netflix, after), accounts, balances, listOf(us), rate, LocalDate.of(2026, 11, 1))
+        assertEquals(LocalDate.of(2026, 11, 30), noSalary.committedUntil)
+        assertEquals(1599L + 5000L, noSalary.committedCents)
+    }
 }
