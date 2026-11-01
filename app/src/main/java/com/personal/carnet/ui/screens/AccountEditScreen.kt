@@ -74,7 +74,6 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
     val snapshot by vm.snapshot.collectAsState()
     var rateText by rememberSaveable { mutableStateOf(FxRate.format(defaultRate.cnyPerSgd)) }
     var cashflow by rememberSaveable { mutableStateOf(old?.inCashflow ?: true) }
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var inUse by rememberSaveable { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     if (old != null) LaunchedEffect(old.id) { inUse = vm.accountInUse(old.id) }
@@ -265,43 +264,23 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                     }
                 }
             }
-        }
-        if (old != null && confirmDelete) {
-            Box(Modifier.padding(horizontal = 16.dp)) {
-                GlassCard(padding = 14.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (inUse) {
-                            Strong("这个账户删不了")
-                            Label("已经有账或者固定收支用到它了。不想再用的话，可以把余额改成 0、关掉「算进发薪前还能花」。", size = 12.sp, weight = FontWeight.Medium)
-                        } else {
-                            Strong("删掉「${old.name}」？")
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(
-                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
-                                        scope.launch {
-                                            if (vm.deleteAccount(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
-                                            else { inUse = true; toast.show("这个账户已经有账了，删不了") }
-                                        }
-                                    }.padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
-                                Box(
-                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) { Strong("算了", size = 14.sp) }
-                            }
+            if (old != null) {
+                com.personal.carnet.ui.components.DangerZone {
+                    com.personal.carnet.ui.components.DangerAction(
+                        title = "删除这个账户",
+                        question = "删掉「${old.name}」？",
+                        confirmText = "删掉",
+                        blocked = if (inUse) "已经有账或者固定收支用到它了。不想再用的话，可以把余额改成 0、关掉「算进发薪前还能花」。" else null,
+                    ) {
+                        scope.launch {
+                            if (vm.deleteAccount(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
+                            else { inUse = true; toast.show("这个账户已经有账了，删不了") }
                         }
                     }
                 }
             }
         }
         Row(Modifier.padding(16.dp).navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (old != null) {
-                Box(
-                    Modifier.glassControl(RoundedCornerShape(22.dp)).jelly { confirmDelete = !confirmDelete }.padding(horizontal = 18.dp, vertical = 18.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Strong("删除", size = 15.sp, color = Palette.Rose) }
-            }
             CtaButton(if (old != null) "保存" else "添加账户", Modifier.weight(1f)) {
                 when {
                     name.isBlank() -> toast.show("先给账户起个名字")

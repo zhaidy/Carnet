@@ -341,3 +341,61 @@ fun ToastHost(state: ToastState, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * 放在编辑页最底下、默认收起的「更多操作」：删除、停止同步这类不能反悔的放这里，
+ * 要滚到底、点开、再点一次确认，不容易误触
+ */
+@Composable
+fun DangerZone(content: @Composable () -> Unit) {
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.align(Alignment.CenterHorizontally).semantics { role = Role.Button }.jelly { open = !open }.padding(horizontal = 16.dp, vertical = 10.dp),
+        ) { Label(if (open) "收起" else "更多操作", size = 13.sp, weight = FontWeight.Bold) }
+        if (open) content()
+    }
+}
+
+/** 更多操作里的一项：点了先问一次；[blocked] 不是 null 时说明为什么做不了 */
+@Composable
+fun DangerAction(
+    title: String,
+    question: String,
+    detail: String? = null,
+    confirmText: String = "确定",
+    blocked: String? = null,
+    onConfirm: () -> Unit,
+) {
+    var asking by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(false) }
+    GlassCard(padding = 14.dp) {
+        if (!asking) {
+            Box(Modifier.fillMaxWidth().semantics { role = Role.Button }.jelly { asking = true }.padding(vertical = 4.dp)) {
+                Strong(title, size = 14.sp, color = Palette.Rose)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (blocked != null) {
+                    Strong("现在做不了", size = 14.sp)
+                    Label(blocked, size = 12.sp, weight = FontWeight.Medium)
+                    Box(Modifier.fillMaxWidth().glassControl(RoundedCornerShape(18.dp)).jelly { asking = false }.padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                        Strong("知道了", size = 14.sp)
+                    }
+                } else {
+                    Strong(question, size = 14.sp)
+                    if (detail != null) Label(detail, size = 12.sp, weight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { asking = false; onConfirm() }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Strong(confirmText, size = 14.sp, color = Palette.Rose) }
+                        Box(
+                            Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { asking = false }.padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Strong("算了", size = 14.sp) }
+                    }
+                }
+            }
+        }
+    }
+}
