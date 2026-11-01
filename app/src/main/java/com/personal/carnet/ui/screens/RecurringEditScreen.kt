@@ -261,7 +261,7 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
                                 Label("每次自动记的时候，${Partner.name}出这么多，剩下的是你的；她转给你的时候在这个账本点两清", size = 12.sp, weight = FontWeight.Medium)
                             }
                         }
-                        CategoryGrid(Categories.expense.map { Triple(it.key, it.label, it.icon) }, category) { category = it }
+                        CategoryGrid((Categories.expense + com.personal.carnet.ui.CustomCategories.expense()).map { Triple(it.key, it.label, it.icon) }, category) { category = it }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {

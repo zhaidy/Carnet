@@ -181,6 +181,11 @@ class MainViewModel(
     ) {
         val entry = EntryFactory.spending(kind, ledger, account, payer, category, note, amountCents, currency, rate, timeMillis, herCents)
         save(entry, editing)
+        // 改了分类就记住「这个商家 → 这个分类」，下次自动记账直接用
+        if (editing != null && editing.category != category && kind == EntryKind.EXPENSE) {
+            val merchant = editing.note.removePrefix("退款 · ").trim()
+            if (merchant.isNotEmpty()) auto.rememberMerchant(merchant, category)
+        }
     }
 
     fun saveTransfer(
