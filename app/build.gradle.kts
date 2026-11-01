@@ -84,6 +84,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.glance.appwidget)
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)

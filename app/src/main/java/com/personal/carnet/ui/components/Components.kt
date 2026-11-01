@@ -71,13 +71,13 @@ import com.personal.carnet.ui.glass.tinted
 import kotlinx.coroutines.delay
 
 @Composable
-fun Label(text: String, size: TextUnit = 13.sp, color: Color = Palette.Muted, weight: FontWeight = FontWeight.Medium, modifier: Modifier = Modifier) {
+fun Label(text: String, size: TextUnit = 13.sp, color: Color = Palette.Muted, weight: FontWeight = FontWeight.Normal, modifier: Modifier = Modifier) {
     Text(text, fontSize = size, color = color, fontWeight = weight, modifier = modifier)
 }
 
 @Composable
 fun Strong(text: String, size: TextUnit = 15.sp, color: Color = Palette.Ink, modifier: Modifier = Modifier) {
-    Text(text, fontSize = size, color = color, fontWeight = FontWeight.Bold, modifier = modifier)
+    Text(text, fontSize = size, color = color, fontWeight = FontWeight.SemiBold, modifier = modifier)
 }
 
 /** 一块玻璃卡片 */
@@ -113,7 +113,7 @@ fun GlassChip(text: String, selected: Boolean, modifier: Modifier = Modifier, on
         Text(
             text,
             fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.SemiBold,
             color = if (selected) Color.White else Palette.Ink,
         )
     }
@@ -249,7 +249,7 @@ fun GlassField(
         onValueChange = onChange,
         singleLine = singleLine,
         visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-        textStyle = TextStyle(fontSize = fontSize, fontWeight = FontWeight.Bold, color = Palette.Ink),
+        textStyle = TextStyle(fontSize = fontSize, fontWeight = FontWeight.SemiBold, color = Palette.Ink),
         cursorBrush = SolidColor(Palette.Violet),
         keyboardOptions = if (decimal) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
         modifier = modifier
@@ -283,7 +283,7 @@ fun Avatar(text: String, her: Boolean, size: Dp = 32.dp, ring: Boolean = false) 
             .then(if (ring) Modifier.border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.4f).sp)
+        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.4f).sp)
     }
 }
 
@@ -305,7 +305,7 @@ fun ScreenHeader(
         val hasBack = onBack != null && backIcon != null
         if (hasBack) RoundGlassButton(backIcon!!, if (backIcon == IconPaths.CLOSE) "关闭" else "返回", onClick = onBack!!)
         Text(
-            title, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.Ink,
+            title, fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink, letterSpacing = (-0.3).sp,
             modifier = Modifier.weight(1f).padding(start = if (hasBack) 0.dp else 4.dp),
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
@@ -373,7 +373,7 @@ fun DangerZone(content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             Modifier.align(Alignment.CenterHorizontally).semantics { role = Role.Button }.jelly { open = !open }.padding(horizontal = 16.dp, vertical = 10.dp),
-        ) { Label(if (open) "收起" else "更多操作", size = 13.sp, weight = FontWeight.Bold) }
+        ) { Label(if (open) "收起" else "更多操作", size = 13.sp, weight = FontWeight.SemiBold) }
         if (open) content()
     }
 }

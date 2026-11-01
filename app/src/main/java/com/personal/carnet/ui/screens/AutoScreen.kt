@@ -82,7 +82,7 @@ fun AutoScreen(snapshot: Snapshot, vm: MainViewModel, onBack: () -> Unit) {
                         size = 12.sp, weight = FontWeight.Medium,
                     )
                     if (!granted) {
-                        Label("还没给 Carnet「通知使用权」", color = Palette.Rose, weight = FontWeight.Bold)
+                        Label("还没给 Carnet「通知使用权」", color = Palette.Rose, weight = FontWeight.SemiBold)
                         CtaButton("去打开通知使用权") {
                             context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         }

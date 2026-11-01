@@ -139,7 +139,7 @@ private fun PartnerCard() {
         }
         val remote = Partner.remote
         if (remote != null) {
-            Label("对方自己设的称呼是「$remote」，界面上都这么叫。", size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+            Label("对方自己设的称呼是「$remote」，界面上都这么叫。", size = 12.sp, weight = FontWeight.SemiBold, color = Palette.Violet)
         } else {
             Label("对方还没设（或者还没同步），先用你给的称呼：", size = 12.sp, weight = FontWeight.Medium)
             com.personal.carnet.ui.components.ChipRow(listOf("她" to "她", "他" to "他"), Partner.local.takeIf { it == "她" || it == "他" }) {
@@ -192,18 +192,18 @@ private fun UpdateCard(update: UpdateState, currentBuild: Long, onCheck: () -> U
                 CtaButton("下载并安装", onClick = { onInstall(update.info) })
             }
             is UpdateState.Downloading -> {
-                Label("正在下载 build ${update.info.build}…", size = 13.sp, weight = FontWeight.Bold)
+                Label("正在下载 build ${update.info.build}…", size = 13.sp, weight = FontWeight.SemiBold)
                 Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.5f))) {
                     Box(Modifier.fillMaxWidth(update.progress.coerceIn(0.02f, 1f)).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Palette.Cta))
                 }
             }
             UpdateState.Checking -> Label("正在检查…", size = 13.sp)
             UpdateState.Latest -> {
-                Label("已经是最新版了", size = 13.sp, weight = FontWeight.Bold)
+                Label("已经是最新版了", size = 13.sp, weight = FontWeight.SemiBold)
                 CtaButton("再查一次", onClick = onCheck)
             }
             is UpdateState.Failed -> {
-                Label(update.message, size = 13.sp, color = Palette.Rose, weight = FontWeight.Bold)
+                Label(update.message, size = 13.sp, color = Palette.Rose, weight = FontWeight.SemiBold)
                 CtaButton("再试一次", onClick = onCheck)
             }
             UpdateState.Idle -> CtaButton("检查更新", onClick = onCheck)

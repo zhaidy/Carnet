@@ -41,6 +41,7 @@ import com.personal.carnet.ui.components.ScreenHeader
 import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.epochDayText
 import com.personal.carnet.ui.glass.Palette
+import com.personal.carnet.ui.glass.CoupleDroplets
 import com.personal.carnet.ui.glass.glass
 import com.personal.carnet.ui.glass.glassControl
 import com.personal.carnet.ui.glass.holo
@@ -111,7 +112,7 @@ fun LedgersScreen(
         }
         item {
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Label("我这个月一共花了", weight = FontWeight.Bold)
+                Label("我这个月一共花了", weight = FontWeight.SemiBold)
                 Strong(Money.format(snapshot.monthMySpendingCents, MainCurrency), size = 28.sp)
                 Label("个人账本 + 共用账本里你那一份；谁多垫了钱，会算进净资产。", size = 12.sp, weight = FontWeight.Medium)
             }
@@ -225,6 +226,15 @@ private fun LedgerCard(
             }
         }
         if (l.shared) {
+            // 两滴水珠：谁多垫了谁那颗更饱满；两清了融成一颗
+            val half = (view.periodCents / 2).coerceAtLeast(1)
+            CoupleDroplets(
+                lean = view.balanceCents.toFloat() / maxOf(half, kotlin.math.abs(view.balanceCents)),
+                settled = view.balanceCents == 0L,
+                me = "我",
+                her = Partner.initial,
+                description = Split.describe(view.balanceCents, view.currency, Partner.name),
+            )
             Row(
                 Modifier.fillMaxWidth().glassControl(RoundedCornerShape(18.dp)).padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -236,7 +246,7 @@ private fun LedgerCard(
                             Modifier.jelly { picking = true }.padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Label("以前结过？设两清到哪天", size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            Label("以前结过？设两清到哪天", size = 11.sp, weight = FontWeight.SemiBold, color = Palette.Violet)
                         }
                     }
                     if (lastDate != null) {
@@ -246,7 +256,7 @@ private fun LedgerCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Label("上次两清 " + dateLabel(lastDate), size = 11.sp)
-                            Label("改", size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            Label("改", size = 11.sp, weight = FontWeight.SemiBold, color = Palette.Violet)
                         }
                     }
                 }
@@ -287,7 +297,7 @@ private fun LedgerCard(
                 Column(Modifier.weight(1f)) {
                     when {
                         syncCode != null -> {
-                            Label("和${Partner.name}同步中 · 邀请码 $syncCode" + (syncStatus?.members?.let { " · $it 台手机" } ?: ""), size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+                            Label("和${Partner.name}同步中 · 邀请码 $syncCode" + (syncStatus?.members?.let { " · $it 台手机" } ?: ""), size = 12.sp, weight = FontWeight.SemiBold, color = Palette.Violet)
                             syncStatus?.uploading?.let { Label("正在上传 $it 笔，新的先传；Carnet 开着就会一直传", size = 11.sp, weight = FontWeight.Medium) }
                             syncStatus?.error?.let { Label(it, size = 11.sp, color = Palette.Rose) }
                         }

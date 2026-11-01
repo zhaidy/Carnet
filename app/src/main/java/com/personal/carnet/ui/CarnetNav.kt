@@ -1,6 +1,21 @@
 package com.personal.carnet.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.draw.clip
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.hazeBlur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,12 +133,18 @@ fun CarnetRoot(vm: MainViewModel, openRoute: kotlinx.coroutines.flow.StateFlow<S
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
-    CompositionLocalProvider(LocalToast provides toast) {
+    // 底栏是一块磨砂玻璃：后面滚过去的内容被它模糊掉
+    val haze = rememberHazeState()
+    // 背景的冷暖跟着杯子多满慢慢变；玻璃按同一个颜色折射
+    val mood by androidx.compose.animation.core.animateFloatAsState(
+        snapshot?.let { com.personal.carnet.ui.glass.cupLevel(it) } ?: 0.6f, androidx.compose.animation.core.tween(1600), label = "mood",
+    )
+    CompositionLocalProvider(LocalToast provides toast, com.personal.carnet.ui.glass.LocalMood provides mood) {
         Box(Modifier.fillMaxSize()) {
             LiquidBackground()
             val snap = snapshot
             if (snap != null) {
-                NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.fillMaxSize()) {
+                NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.fillMaxSize().hazeSource(haze)) {
                     composable(Routes.HOME) {
                         HomeScreen(
                             snap,
@@ -236,12 +257,7 @@ fun CarnetRoot(vm: MainViewModel, openRoute: kotlinx.coroutines.flow.StateFlow<S
                     composable(Routes.NEW_RULE) { RecurringEditScreen(snap, vm, onDone = { nav.popBackStack() }) }
                 }
                 if (route in tabs.map { it.route }) {
-                    // 底栏后面一段渐隐：滚到下面的内容慢慢淡掉，不和底栏的字叠在一起
-                    Box(
-                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(150.dp)
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9EAF4F8), Color(0xF2EAF4F8)))),
-                    )
-                    TabBar(route, onTab = { nav.switchTab(it) }, onAdd = { nav.navigate(Routes.ADD) }, modifier = Modifier.align(Alignment.BottomCenter))
+                    TabBar(haze, route, onTab = { nav.switchTab(it) }, onAdd = { nav.navigate(Routes.ADD) }, modifier = Modifier.align(Alignment.BottomCenter))
                 }
             }
             ToastHost(toast, Modifier.align(Alignment.TopCenter))
@@ -257,42 +273,103 @@ private fun NavHostController.switchTab(route: String) {
     }
 }
 
-/** 悬浮的玻璃胶囊底栏，右边一颗单独的「记一笔」 */
+/** 底栏的模糊：半径大一点、带一层淡白，后面的字糊成颜色，底栏上的字才看得清 */
+private val BarBlur = HazeBlurStyle {
+    blurRadius(28.dp)
+    backgroundColor(Color.White.copy(alpha = 0.35f))
+    noiseFactor(0.06f)
+}
+
+/**
+ * 水银底栏：选中的那一格后面是一滴玻璃液体。切页时它不是跳过去，
+ * 而是前沿先冲过去、后沿慢慢跟上，中间拉长变扁，到了再缩回一滴。
+ * 右边的「＋」是从底栏上鼓出来、快要滴下来的一颗水珠，和底栏之间连着一道液体的颈
+ */
 @Composable
-private fun TabBar(current: String?, onTab: (String) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+private fun TabBar(haze: HazeState, current: String?, onTab: (String) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    val index = tabs.indexOfFirst { it.route == current }.coerceAtLeast(0)
+    val last = remember { mutableIntStateOf(index) }
+    val forward = index >= last.intValue
+    LaunchedEffect(index) { last.intValue = index }
+    // 前沿快、后沿慢：往右走时右边先到，往左走时左边先到
+    val fast = spring<Float>(dampingRatio = 0.62f, stiffness = 520f)
+    val slow = spring<Float>(dampingRatio = 0.75f, stiffness = 110f)
+    val leftEdge by animateFloatAsState(index.toFloat(), if (forward) slow else fast, label = "left")
+    val rightEdge by animateFloatAsState(index.toFloat(), if (forward) fast else slow, label = "right")
+
+    Box(
+        modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 18.dp).height(64.dp),
     ) {
-        Row(
-            Modifier.weight(1f).height(64.dp)
-                // 底栏更实一点，后面的字透不过来
-                .background(Color.White.copy(alpha = 0.72f), RoundedCornerShape(32.dp))
-                .glass(RoundedCornerShape(32.dp)).padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            tabs.forEach { tab ->
-                val on = tab.route == current
-                val color = if (on) Palette.Violet else Palette.Muted
-                Column(
+        // 底栏和水珠之间的颈：画在最底下，两头藏在底栏和水珠下面
+        Canvas(Modifier.matchParentSize()) {
+            val fabLeft = size.width - 64.dp.toPx()
+            val barRight = fabLeft - 10.dp.toPx()
+            val cy = size.height / 2
+            // 两头正好接在底栏和水珠的圆弧上（半径 32dp，在 ±14dp 高处往里收 3dp 多）
+            val half = 14.dp.toPx()
+            val x1 = barRight - 4.dp.toPx()
+            val x2 = fabLeft + 4.dp.toPx()
+            val mid = (barRight + fabLeft) / 2
+            val neck = 4.5.dp.toPx()
+            val path = Path().apply {
+                moveTo(x1, cy - half)
+                quadraticTo(mid, cy - neck, x2, cy - half)
+                lineTo(x2, cy + half)
+                quadraticTo(mid, cy + neck, x1, cy + half)
+                close()
+            }
+            drawPath(path, Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.6f), Color(0xFF6A5CF4).copy(alpha = 0.9f)), startX = x1, endX = x2))
+        }
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            BoxWithConstraints(
+                Modifier.weight(1f).fillMaxHeight()
+                    .clip(RoundedCornerShape(32.dp))
+                    .hazeBlur(HazeInput.Sources(haze), BarBlur)
+                    .glass(RoundedCornerShape(32.dp)).padding(6.dp),
+            ) {
+                val tabW = maxWidth / tabs.size
+                // 那滴液体：拉得越长越扁，像水银被拖动
+                val stretch = (rightEdge - leftEdge).coerceAtLeast(0f)
+                val squeeze = (stretch * 0.18f).coerceAtMost(0.22f)
+                Box(
                     Modifier
-                        .weight(1f)
+                        .offset(x = tabW * leftEdge)
+                        .width(tabW * (1f + stretch))
                         .fillMaxHeight()
-                        .then(if (on) Modifier.glassControl(RoundedCornerShape(26.dp)) else Modifier)
-                        .semantics { selected = on; role = Role.Tab }
-                        .jelly { onTab(tab.route) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    LineIcon(tab.icon, color, size = 21.dp, width = if (on) 2f else 1.9f)
-                    Text(tab.label, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, color = color)
+                        .padding(vertical = (52.dp * squeeze / 2))
+                        .tinted(RoundedCornerShape(26.dp), MercuryDrop),
+                )
+                Row(Modifier.fillMaxSize()) {
+                    tabs.forEach { tab ->
+                        val on = tab.route == current
+                        val color = if (on) Palette.Violet else Palette.Muted
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .semantics { selected = on; role = Role.Tab }
+                                .jelly { onTab(tab.route) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            LineIcon(tab.icon, color, size = 21.dp, width = if (on) 2.1f else 1.9f)
+                            Text(tab.label, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = color)
+                        }
+                    }
                 }
             }
+            Box(
+                Modifier.size(64.dp).clip(CircleShape).hazeBlur(HazeInput.Sources(haze), BarBlur).tinted(CircleShape, Palette.Cta)
+                    .semantics { contentDescription = "记一笔"; role = Role.Button }.jelly(onClick = onAdd),
+                contentAlignment = Alignment.Center,
+            ) {
+                // 水珠的高光：左上一小片
+                Box(Modifier.align(Alignment.TopStart).offset(x = 15.dp, y = 11.dp).size(width = 16.dp, height = 8.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.55f)))
+                LineIcon(IconPaths.PLUS, Color.White, size = 26.dp, width = 2.4f)
+            }
         }
-        Box(
-            Modifier.size(64.dp).tinted(CircleShape, Palette.Cta).semantics { contentDescription = "记一笔"; role = Role.Button }.jelly(onClick = onAdd),
-            contentAlignment = Alignment.Center,
-        ) { LineIcon(IconPaths.PLUS, Color.White, size = 26.dp, width = 2.4f) }
     }
 }
+
+/** 选中那滴液体：很淡的靛蓝玻璃，比底栏亮一点 */
+private val MercuryDrop = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.85f), Color(0xFFE3DFFF).copy(alpha = 0.75f)))

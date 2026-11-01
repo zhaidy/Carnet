@@ -53,6 +53,11 @@ import com.personal.carnet.ui.line
 import java.time.LocalDate
 import java.time.YearMonth
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import com.personal.carnet.ui.glass.glass
+import com.personal.carnet.ui.glass.glassSphere
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
@@ -195,7 +200,7 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                             diff < 0 -> "这段时间${Partner.name}多垫了 " + Money.format(-diff, c)
                             else -> "这段时间正好一人一半"
                         } + "（只算这里筛出来的账，结算看账本页）",
-                        size = 11.sp, weight = FontWeight.Bold, color = Palette.Violet,
+                        size = 11.sp, weight = FontWeight.SemiBold, color = Palette.Violet,
                     )
                 }
                 Label(
@@ -283,20 +288,22 @@ private fun MonthGrid(
     selected: LocalDate?,
     onSelect: (LocalDate) -> Unit,
 ) {
-    val maxSpent = days.values.maxOfOrNull { it.spentCents }?.takeIf { it > 0 } ?: 1L
+    // 尺子按大多数日子定（第 85 百分位），交房租那种特别大的一天直接算满，不把别的天都压扁
+    val maxSpent = days.values.map { it.spentCents }.filter { it > 0 }.sorted()
+        .let { if (it.isEmpty()) 1L else it[((it.size - 1) * 0.85f).toInt()].coerceAtLeast(1) }
     Column(
-        Modifier.fillMaxWidth().glassControl(RoundedCornerShape(24.dp)).padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(Modifier.fillMaxWidth()) {
             listOf("一", "二", "三", "四", "五", "六", "日").forEach {
-                Text(it, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Palette.Muted, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Palette.Muted, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
             }
         }
         CalendarMonth.weeks(month).forEach { week ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 week.forEach { date ->
-                    Box(Modifier.weight(1f).aspectRatio(0.82f)) {
+                    Box(Modifier.weight(1f).aspectRatio(1f)) {
                         if (date != null) DayCell(date, days[date], planned[date].orEmpty(), maxSpent, date == today, date == selected, date > today) { onSelect(date) }
                     }
                 }
@@ -305,26 +312,20 @@ private fun MonthGrid(
     }
 }
 
+/**
+ * 日历的一天：日期数字下面一颗玻璃水珠，花得越多水珠越大（按面积开方），没花钱就没有；
+ * 今天的数字套一个靛蓝小圆，选中的那天整格变成一块亮玻璃。
+ * 底下的小点：绿的是进账、粉的是到日子要扣的固定支出
+ */
 @Composable
 private fun DayCell(
     date: LocalDate, day: EntryDay?, rules: List<RecurringRule>, maxSpent: Long,
     isToday: Boolean, isSelected: Boolean, future: Boolean, onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(12.dp)
     val spent = day?.spentCents ?: 0
-    // 0.10–0.42 的紫，花得越多越深
-    val heat = if (spent > 0) 0.10f + 0.32f * (spent.toFloat() / maxSpent).coerceIn(0f, 1f) else 0f
-    val textColor = if (isSelected) Color.White else if (future) Palette.Muted else Palette.Ink
-    Column(
+    val share = if (spent > 0) kotlin.math.sqrt((spent.toFloat() / maxSpent).coerceIn(0f, 1f)) else 0f
+    BoxWithConstraints(
         Modifier.fillMaxSize()
-            .then(
-                when {
-                    isSelected -> Modifier.tinted(shape, Palette.Cta)
-                    heat > 0 -> Modifier.clip(shape).background(Palette.Violet.copy(alpha = heat))
-                    else -> Modifier.clip(shape).background(Color.White.copy(alpha = if (future) 0.18f else 0.34f))
-                },
-            )
-            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, Palette.Violet, shape) else Modifier)
             .semantics {
                 this.selected = isSelected
                 role = Role.Button
@@ -332,26 +333,40 @@ private fun DayCell(
                     (if (spent > 0) "，支出 " + Money.format(spent, MainCurrency) else "") +
                     (if (rules.isNotEmpty()) "，" + rules.joinToString("、") { it.name } else "")
             }
-            .jelly(onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+            .jelly(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(date.dayOfMonth.toString(), fontSize = 13.sp, fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Bold, color = textColor)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            if (spent > 0) {
-                Text(
-                    CalendarMonth.compact(spent), fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                    color = if (isSelected || heat > 0.3f) Color.White else Palette.Ink,
-                )
-            }
+        // 水珠占满整格：花得越多越大，日期就写在水珠中间
+        val full = minOf(maxWidth, maxHeight) - 4.dp
+        val d = if (spent > 0) 18.dp + (full - 18.dp) * share else 0.dp
+        Canvas(Modifier.fillMaxSize()) {
+            val c = center
+            if (spent > 0) glassSphere(c, d.toPx() / 2, DropColor, DropColorRight, shadow = false)
+            // 选中：外面一圈亮白的光环；今天：一圈靛蓝
+            val ring = (if (spent > 0) d.toPx() / 2 else 14.dp.toPx()) + 3.dp.toPx()
+            if (isSelected) drawCircle(Color.White, ring, c, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx()))
+            else if (isToday) drawCircle(Palette.Violet, ring, c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if ((day?.incomeCents ?: 0) > 0 || rules.any { it.kind == RuleKind.INCOME }) Dot(if (isSelected) Color.White else Palette.Teal)
-            if (rules.any { it.kind != RuleKind.INCOME }) Dot(if (isSelected) Color.White else Palette.Rose)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                date.dayOfMonth.toString(),
+                fontSize = 12.sp,
+                fontWeight = if (isToday || spent > 0) FontWeight.SemiBold else FontWeight.Medium,
+                color = when { isToday -> Palette.Violet; future || spent == 0L -> Palette.Muted.copy(alpha = 0.75f); else -> Palette.Ink },
+            )
+            if (d >= 40.dp) Text(CalendarMonth.compact(spent), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink.copy(alpha = 0.75f), maxLines = 1)
+        }
+        // 底下的小点：绿的进账，粉的到日子要扣的固定支出
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            if ((day?.incomeCents ?: 0) > 0 || rules.any { it.kind == RuleKind.INCOME }) Dot(Palette.Teal)
+            if (rules.any { it.kind != RuleKind.INCOME }) Dot(Palette.Rose)
         }
     }
 }
+
+/** 日历水珠的颜色：靛蓝 */
+private val DropColor = Color(0xFF6E62F2)
+private val DropColorRight = Color(0xFF5C8CF5)
 
 @Composable
 private fun Dot(color: Color) = Box(Modifier.size(5.dp).clip(CircleShape).background(color))
