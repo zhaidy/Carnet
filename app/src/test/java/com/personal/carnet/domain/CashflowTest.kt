@@ -178,4 +178,11 @@ class CashflowTest {
         assertEquals(LocalDate.of(2026, 11, 13), Cashflow.nextDueDate(cardA.copy(dueDay = 13), today))
         assertEquals(LocalDate.of(2026, 11, 30), Cashflow.nextDueDate(cardA.copy(dueDay = 31), LocalDate.of(2026, 11, 1)))
     }
+
+    @Test
+    fun 固定支出里对方出固定金额() {
+        val rent = rule("房租", RuleKind.EXPENSE, 20, 330000, ledger = us.id).copy(herCents = 120000)
+        val plan = Cashflow.plan(listOf(rent), accounts, balances, listOf(us), rate, today)
+        assertEquals(210000L, plan.monthlyFixedCents)
+    }
 }

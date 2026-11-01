@@ -64,4 +64,19 @@ class SyncedEntryTest {
         assertNull(SyncCodes.normalize("AB0CD1"))
         assertEquals(6, SyncCodes.generate(java.security.SecureRandom()).length)
     }
+
+    @Test
+    fun 对方出固定金额同步过去换成她的角度() {
+        // 我记的房租 3300，她出 1200
+        val rent = mine.copy(amountCents = 330000, accountCents = 330000, ledgerCents = 330000, herCents = 120000)
+        val map = SyncedEntry.toMap(rent, "me")
+        // 我这边原样
+        assertEquals(120000L, SyncedEntry.fromMap("s1", map, 2, "me")!!.herCents)
+        // 她那边：她的「对方」是我，我出 2100
+        val onHer = SyncedEntry.fromMap("s1", map, 9, "her")!!
+        assertEquals(210000L, onHer.herCents)
+        assertEquals(Payer.HER, onHer.payer)
+        // 没设固定金额的还是 null
+        assertNull(SyncedEntry.fromMap("s2", SyncedEntry.toMap(mine, "me"), 9, "her")!!.herCents)
+    }
 }

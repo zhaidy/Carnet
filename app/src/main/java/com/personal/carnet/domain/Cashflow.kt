@@ -209,7 +209,14 @@ object Cashflow {
         val monthly = active.filter { it.kind == RuleKind.EXPENSE }.sumOf { rule ->
             val ledger = ledgerById[rule.ledgerId]
             val perMonth = Schedule.perMonth(rule)
-            val mine = if (ledger?.shared == true) Split.myShare(perMonth, ledger.myPercent) else perMonth
+            val mine = when {
+                ledger?.shared != true -> perMonth
+                // 对方每次出固定金额：按次数折到每月
+                rule.herCents != null && rule.amountCents > 0 ->
+                    perMonth - java.math.BigDecimal.valueOf(perMonth).multiply(java.math.BigDecimal.valueOf(rule.herCents.coerceAtMost(rule.amountCents)))
+                        .divide(java.math.BigDecimal.valueOf(rule.amountCents), 0, java.math.RoundingMode.HALF_UP).toLong()
+                else -> Split.myShare(perMonth, ledger.myPercent)
+            }
             rate.convert(mine, rule.currency, MainCurrency)
         }
 

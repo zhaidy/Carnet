@@ -42,4 +42,6 @@ data class RecurringRule(
     val active: Boolean = true,
     val lastDoneEpochDay: Long,
     val createdAt: Long = System.currentTimeMillis(),
+    /** 记到共用账本的支出：对方每次出固定多少（按这条的币种）；null 是按账本比例分 */
+    val herCents: Long? = null,
 )

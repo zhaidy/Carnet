@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,6 +84,11 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
     var cardId by rememberSaveable { mutableStateOf(old?.toAccountId ?: cards.firstOrNull()?.id) }
     var ledgerId by rememberSaveable { mutableStateOf(old?.ledgerId ?: personal?.id) }
     var auto by rememberSaveable { mutableStateOf(old?.auto ?: true) }
+    // 记到共用账本时：按账本比例，还是对方每次出固定金额
+    var fixedSplit by rememberSaveable { mutableStateOf(old?.herCents != null) }
+    var herText by rememberSaveable {
+        mutableStateOf(old?.herCents?.let { java.math.BigDecimal.valueOf(it).movePointLeft(2).setScale(2).toPlainString() } ?: "")
+    }
 
     fun apply(p: RulePreset) {
         preset = p
@@ -117,6 +124,7 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
         accountId = if (kind == RuleKind.EXPENSE || kind == RuleKind.INCOME || kind == RuleKind.CARD_PAYMENT) accountId else null,
         toAccountId = if (kind == RuleKind.CARD_PAYMENT) cardId else null,
         ledgerId = if (kind == RuleKind.EXPENSE) ledgerId else null,
+        herCents = if (kind == RuleKind.EXPENSE && fixedSplit && ledgers.firstOrNull { it.id == ledgerId }?.shared == true) Money.fromInput(herText) else null,
         auto = auto,
         lastDoneEpochDay = old?.lastDoneEpochDay ?: LocalDate.now().toEpochDay(),
     ).let { if (old != null) it.copy(id = old.id, active = old.active, createdAt = old.createdAt) else it }
@@ -141,7 +149,13 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
                             RuleKind.INCOME -> append(" 进${accounts.firstOrNull { it.id == accountId }?.name ?: "?"} " + Money.format(cents, currency))
                             RuleKind.EXPENSE -> {
                                 append(" 从${accounts.firstOrNull { it.id == accountId }?.name ?: "?"}扣 " + (if (approximate) "约 " else "") + Money.format(cents, currency))
-                                if (ledger?.shared == true) append("，记到「${ledger.name}」平分")
+                                if (ledger?.shared == true) {
+                                    val her = draft.herCents
+                                    append(
+                                        if (her != null) "，记到「${ledger.name}」：${Partner.name}出 " + Money.format(her, currency) + "，你出 " + Money.format((cents - her).coerceAtLeast(0), currency)
+                                        else "，记到「${ledger.name}」" + (if (ledger.myPercent == 50) "平分" else "你出 ${ledger.myPercent}%"),
+                                    )
+                                }
                             }
                         }
                         append(if (auto) "，到日子自动记一笔。" else "，到日子先在总览里提醒你。")
@@ -227,6 +241,21 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
                     }
                     if (kind == RuleKind.EXPENSE) {
                         ChipRow(ledgers.map { it.id to it.name }, ledgerId, "记到") { ledgerId = it }
+                        val chosen = ledgers.firstOrNull { it.id == ledgerId }
+                        if (chosen?.shared == true) {
+                            ChipRow(
+                                listOf(false to (if (chosen.myPercent == 50) "平分" else "你出 ${chosen.myPercent}%"), true to "${Partner.name}出固定金额"),
+                                fixedSplit, "怎么分",
+                            ) { fixedSplit = it }
+                            if (fixedSplit) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Label("${Partner.name}出", modifier = Modifier.width(56.dp))
+                                    Strong(currency.symbol, size = 15.sp)
+                                    GlassField(herText, { herText = it.filter { c -> c.isDigit() || c == '.' } }, "每次出多少", Modifier.weight(1f), decimal = true, fontSize = 17.sp)
+                                }
+                                Label("每次自动记的时候，${Partner.name}出这么多，剩下的是你的；她转给你的时候在这个账本点两清", size = 12.sp, weight = FontWeight.Medium)
+                            }
+                        }
                         CategoryGrid(Categories.expense.map { Triple(it.key, it.label, it.icon) }, category) { category = it }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {

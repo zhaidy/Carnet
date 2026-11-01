@@ -21,6 +21,8 @@ object SyncedEntry {
         "currency" to entry.currency.code,
         "ledgerCents" to entry.ledgerCents,
         "rate" to entry.rate,
+        // 记账人的对方出固定多少；对方收到时换成「自己出」的，剩下的才是记账人出的
+        "partnerCents" to entry.herCents,
         "deleted" to false,
     )
 
@@ -45,6 +47,9 @@ object SyncedEntry {
             ledgerCents = (data["ledgerCents"] as? Number)?.toLong() ?: amount,
             rate = (data["rate"] as? Number)?.toDouble(),
             syncId = syncId,
+            herCents = (data["partnerCents"] as? Number)?.toLong()?.let { partner ->
+                if (authorIsMe) partner else ((data["ledgerCents"] as? Number)?.toLong() ?: amount) - partner
+            },
         )
     }
 

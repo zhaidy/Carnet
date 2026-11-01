@@ -87,6 +87,8 @@ data class Entry(
     val rate: Double? = null,
     /** 同步到共用账本后的 id；本机还没传上去、或者不在同步的账本里是 null */
     val syncId: String? = null,
+    /** 共用账本里这一笔对方出固定多少（账本货币）；null 是按账本比例分 */
+    val herCents: Long? = null,
 )
 
 /** 结过一次账：这之前的共用开销都两清了 */
