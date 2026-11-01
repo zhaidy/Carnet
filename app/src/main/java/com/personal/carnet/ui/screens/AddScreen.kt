@@ -156,7 +156,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
         ) {
             RoundGlassButton(IconPaths.CLOSE, "关闭", onClick = onClose)
             if (e != null) {
-                Text("改这一笔", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                Text("改这一笔", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
             } else {
             Spacer(Modifier.weight(1f))
             Row(Modifier.glassControl().padding(4.dp)) {
@@ -173,7 +173,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                                 category = if (m == Mode.INCOME) "salary" else "food"
                             },
                         contentAlignment = Alignment.Center,
-                    ) { Text(m.label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted) }
+                    ) { Text(m.label, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted) }
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -307,50 +307,68 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                         ) { Strong(if (thinking) "…" else "听懂", size = 14.sp, color = Color.White) }
                     }
                 }
-                Column(
-                    Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Strong(cat.label, size = 16.sp)
-                            Label(splitText, size = 12.sp)
-                        }
-                        Row(
-                            Modifier.glassControl(RoundedCornerShape(12.dp))
-                                .semantics { contentDescription = "切换币种，现在是${spend.label}"; role = Role.Button }
-                                .jelly { spend = if (spend == Currency.CNY) Currency.SGD else Currency.CNY }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        ) {
-                            Strong(spend.symbol, size = 16.sp)
-                            LineIcon(IconPaths.SWAP, Palette.Ink, size = 12.dp, width = 2.2f)
-                        }
-                        Spacer(Modifier.width(6.dp))
-                        Text(amount.ifEmpty { "0" }, fontSize = 36.sp, fontWeight = FontWeight.Bold, color = Palette.Ink)
-                    }
-                    if (fx.isNotEmpty()) {
-                        Row(
-                            Modifier.fillMaxWidth().glassControl(RoundedCornerShape(16.dp)).padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(fx.joinToString("；"), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f))
-                            Box(
-                                Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { rateOpen = !rateOpen }.padding(horizontal = 10.dp, vertical = 7.dp),
-                            ) {
-                                Text(
-                                    "1 S$ = ¥" + FxRate.format(rate.cnyPerSgd) + if (rateText.isNotBlank()) " · 这一笔" else " · 默认",
-                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Palette.Violet,
-                                )
+                // 顶上这块也是总览那杯水：输入支出时杯子跟着往下降，记收入往上涨，
+                // 记之前就看得到这一笔要喝掉这个月多少；液体颜色跟着币种（新币靛蓝、人民币玫粉）
+                val salary = remember(snapshot) { com.personal.carnet.ui.glass.salaryMain(snapshot) }
+                val before = remember(snapshot) { com.personal.carnet.ui.glass.cupLevel(snapshot) }
+                val mainCents = rate.convert(cents ?: 0, spend, MainCurrency) -
+                    (spending?.let { rate.convert(it.amountCents, it.currency, MainCurrency) } ?: 0)
+                val drain = if (herPaid) 0L else if (isIncome) -mainCents else mainCents
+                val after = if (salary > 0) before - drain.toFloat() / salary else before
+                val spendableAfter = snapshot.plan.spendableCents?.minus(drain)
+                Box(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp))) {
+                    com.personal.carnet.ui.glass.MoneyVessel(after, if (spend == Currency.CNY) 0f else 1f, Modifier.matchParentSize())
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Strong(cat.label, size = 16.sp)
+                                Label(splitText, size = 12.sp)
                             }
+                            Row(
+                                Modifier.glassControl(RoundedCornerShape(12.dp))
+                                    .semantics { contentDescription = "切换币种，现在是${spend.label}"; role = Role.Button }
+                                    .jelly { spend = if (spend == Currency.CNY) Currency.SGD else Currency.CNY }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Strong(spend.symbol, size = 16.sp)
+                                LineIcon(IconPaths.SWAP, Palette.Ink, size = 12.dp, width = 2.2f)
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            com.personal.carnet.ui.glass.GlassNumber(amount.ifEmpty { "0" }, size = 36.sp)
                         }
-                        if (rateOpen) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Label("这一笔用 1 S$ = ¥", size = 12.sp)
-                                GlassField(rateText, { rateText = it.filter { c -> c.isDigit() || c == '.' } }, FxRate.format(defaultRate.cnyPerSgd), Modifier.weight(1f), decimal = true)
-                                Box(Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { rateText = ""; rateOpen = false }.padding(10.dp)) {
-                                    Strong("用默认", size = 12.sp)
+                        if (spendableAfter != null && drain != 0L) {
+                            Label(
+                                "记完，发薪前还能花 " + Money.format(spendableAfter, MainCurrency),
+                                size = 12.sp, weight = FontWeight.SemiBold, color = if (spendableAfter < 0) Palette.Rose else Palette.Ink,
+                            )
+                        }
+                        if (fx.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth().glassControl(RoundedCornerShape(16.dp)).padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(fx.joinToString("；"), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink, modifier = Modifier.weight(1f))
+                                Box(
+                                    Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { rateOpen = !rateOpen }.padding(horizontal = 10.dp, vertical = 7.dp),
+                                ) {
+                                    Text(
+                                        "1 S$ = ¥" + FxRate.format(rate.cnyPerSgd) + if (rateText.isNotBlank()) " · 这一笔" else " · 默认",
+                                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Palette.Violet,
+                                    )
+                                }
+                            }
+                            if (rateOpen) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Label("这一笔用 1 S$ = ¥", size = 12.sp)
+                                    GlassField(rateText, { rateText = it.filter { c -> c.isDigit() || c == '.' } }, FxRate.format(defaultRate.cnyPerSgd), Modifier.weight(1f), decimal = true)
+                                    Box(Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { rateText = ""; rateOpen = false }.padding(10.dp)) {
+                                        Strong("用默认", size = 12.sp)
+                                    }
                                 }
                             }
                         }
@@ -448,7 +466,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     }
                     if (cross) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Label("汇率", modifier = Modifier.width(40.dp), weight = FontWeight.Bold)
+                            Label("汇率", modifier = Modifier.width(40.dp), weight = FontWeight.SemiBold)
                             Strong("1 S$ = ¥", size = 13.sp)
                             GlassField(tRate, { v ->
                                 tRate = v
@@ -559,7 +577,7 @@ private fun typeKey(current: String, key: String): String {
 @Composable
 private fun AmountLine(label: String, currency: Currency, value: String, placeholder: String, onChange: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Label(label, modifier = Modifier.width(40.dp), weight = FontWeight.Bold)
+        Label(label, modifier = Modifier.width(40.dp), weight = FontWeight.SemiBold)
         Strong(currency.symbol, size = 17.sp, modifier = Modifier.width(28.dp))
         GlassField(value, { onChange(it.filter { c -> c.isDigit() || c == '.' }) }, placeholder, Modifier.weight(1f), decimal = true, fontSize = 22.sp)
     }
@@ -617,7 +635,7 @@ fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, 
                             Modifier.size(46.dp).then(if (on) Modifier.tinted(RoundedCornerShape(16.dp), Palette.Cta) else Modifier.glassControl(RoundedCornerShape(16.dp))),
                             contentAlignment = Alignment.Center,
                         ) { LineIcon(icon, if (on) Color.White else Palette.Ink, size = 21.dp) }
-                        Text(label, fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted)
+                        Text(label, fontSize = 12.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted)
                     }
                 }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -672,5 +690,5 @@ private fun Key(label: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier.height(50.dp).glassControl(RoundedCornerShape(18.dp)).jelly(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.Ink) }
+    ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink) }
 }

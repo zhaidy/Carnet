@@ -115,14 +115,14 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Strong(name.ifBlank { "新账户" }, size = 17.sp, modifier = Modifier.weight(1f))
-                    Label(type.label + " · " + currency.label, size = 12.sp, weight = FontWeight.Bold)
+                    Label(type.label + " · " + currency.label, size = 12.sp, weight = FontWeight.SemiBold)
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
                         Label(if (credit) "现在欠" else "现在有", size = 12.sp)
                         Strong(Money.format(cents, currency), size = 26.sp)
                     }
-                    if (currency != MainCurrency) Label("≈ " + Money.format((rate ?: defaultRate).convert(cents, currency, MainCurrency), MainCurrency), weight = FontWeight.Bold, size = 12.sp)
+                    if (currency != MainCurrency) Label("≈ " + Money.format((rate ?: defaultRate).convert(cents, currency, MainCurrency), MainCurrency), weight = FontWeight.SemiBold, size = 12.sp)
                 }
             }
 

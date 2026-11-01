@@ -158,7 +158,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Strong(name.ifBlank { "新账本" }, size = 20.sp, modifier = Modifier.weight(1f))
-                    Label(currency?.let { it.symbol + " " + it.label } ?: currencyLabel, weight = FontWeight.Bold)
+                    Label(currency?.let { it.symbol + " " + it.label } ?: currencyLabel, weight = FontWeight.SemiBold)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(width = if (withHer) 54.dp else 32.dp, height = 32.dp)) {

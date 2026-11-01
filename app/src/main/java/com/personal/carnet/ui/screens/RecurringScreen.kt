@@ -75,7 +75,7 @@ fun RecurringScreen(
         item { ScreenHeader("固定支出和工资", onBack = onBack) { PillButton("新建", IconPaths.PLUS, onClick = onNew) } }
         item {
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Label("每月固定支出 · 你的那份", weight = FontWeight.Bold)
+                Label("每月固定支出 · 你的那份", weight = FontWeight.SemiBold)
                 Strong(Money.format(plan.monthlyFixedCents, MainCurrency), size = 30.sp)
                 val spendable = plan.spendableCents
                 val payday = plan.payday
@@ -167,7 +167,7 @@ fun RecurringScreen(
 private fun Badge(text: String, color: Color) {
     Text(
         text,
-        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White,
+        fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
         modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(color).padding(horizontal = 7.dp, vertical = 2.dp),
     )
 }

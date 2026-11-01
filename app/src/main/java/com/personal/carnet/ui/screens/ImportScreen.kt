@@ -99,7 +99,7 @@ fun ImportScreen(snapshot: Snapshot, vm: MainViewModel, onBack: () -> Unit) {
                 vm.runImport(s.sheet.rows, choices, ledgerId, settled)
             }
             ImportState.Reading, ImportState.Importing -> Box(Modifier.padding(16.dp)) {
-                GlassCard { Label(if (s == ImportState.Reading) "正在读表…" else "正在导入…", weight = FontWeight.Bold) }
+                GlassCard { Label(if (s == ImportState.Reading) "正在读表…" else "正在导入…", weight = FontWeight.SemiBold) }
             }
             is ImportState.Done -> Box(Modifier.padding(16.dp)) {
                 GlassCard {
@@ -180,7 +180,7 @@ private fun Preview(
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Column(Modifier.weight(1f)) {
-                        Label("一共", weight = FontWeight.Bold)
+                        Label("一共", weight = FontWeight.SemiBold)
                         Strong(Money.format(totalMain, MainCurrency), size = 28.sp)
                     }
                     Column(horizontalAlignment = Alignment.End) {

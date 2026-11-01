@@ -2,6 +2,14 @@ package com.personal.carnet.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import com.personal.carnet.ui.glass.tubeLevels
+import com.personal.carnet.ui.glass.tubeColors
+import com.personal.carnet.ui.glass.GlassTube
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,6 +63,7 @@ fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxR
     val toast = LocalToast.current
     var editingRate by rememberSaveable { mutableStateOf(false) }
     var rateText by rememberSaveable { mutableStateOf("") }
+    val levels = remember(snapshot) { tubeLevels(snapshot.accounts, snapshot.rate) }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -113,12 +122,15 @@ fun AccountsScreen(snapshot: Snapshot, onNewAccount: () -> Unit, onSetRate: (FxR
                 }
             }
         }
-        items(snapshot.accounts, key = { it.account.id }) { view -> AccountCard(view, snapshot.rate) { onEdit(view) } }
+        if (snapshot.accounts.isNotEmpty()) {
+            item(key = "rack") { TubeRack(snapshot, levels, onEdit) }
+        }
+        items(snapshot.accounts, key = { it.account.id }) { view -> AccountCard(view, snapshot.rate, levels[view.account.id] ?: 0f) { onEdit(view) } }
     }
 }
 
 @Composable
-private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
+private fun AccountCard(view: AccountView, rate: FxRate, level: Float, onClick: () -> Unit) {
     val a = view.account
     val credit = a.type == AccountType.CREDIT
     val icon = when (a.type) {
@@ -133,7 +145,7 @@ private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            IconTile(icon, size = 38.dp, key = a.type.name)
+            GlassTube(level, tubeColors(view), fromTop = credit, Modifier.size(width = 18.dp, height = 46.dp))
             Column(Modifier.weight(1f)) {
                 Strong(a.name)
                 Label(a.type.label + " · " + a.currency.label, size = 12.sp)
@@ -152,6 +164,37 @@ private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
             if (!a.inCashflow && !credit) "不算进发薪前还能花" else null,
         )
         if (notes.isNotEmpty()) Text(notes.joinToString(" · "), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.Muted)
+    }
+}
+
+/**
+ * 试管架：所有账户并排立着，液体高度一眼比出钱都在哪。
+ * 存钱的从底往上灌（新币靛蓝、人民币玫粉），信用卡是暗红色的欠款从顶往下灌
+ */
+@Composable
+private fun TubeRack(snapshot: Snapshot, levels: Map<Long, Float>, onEdit: (AccountView) -> Unit) {
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(top = 16.dp, bottom = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            snapshot.accounts.forEach { v ->
+                val credit = v.account.type == AccountType.CREDIT
+                Column(
+                    Modifier.width(72.dp).jelly { onEdit(v) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    GlassTube(levels[v.account.id] ?: 0f, tubeColors(v), fromTop = credit, Modifier.size(width = 34.dp, height = 128.dp))
+                    Text(v.account.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(
+                        (if (credit) "欠 " else "") + v.account.currency.symbol + com.personal.carnet.domain.CalendarMonth.compact(kotlin.math.abs(v.balanceCents)),
+                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (credit) Palette.Rose else Palette.Muted,
+                    )
+                }
+            }
+        }
     }
 }
 

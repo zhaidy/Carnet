@@ -1,18 +1,21 @@
 package com.personal.carnet.ui.screens
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import com.personal.carnet.ui.Partner
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import com.personal.carnet.ui.glass.MoneyVessel
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,6 +59,7 @@ import com.personal.carnet.ui.components.Label
 import com.personal.carnet.ui.components.LocalToast
 import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.glass.Palette
+import com.personal.carnet.ui.glass.glassSphere
 import com.personal.carnet.ui.glass.glass
 import com.personal.carnet.ui.glass.glassControl
 import com.personal.carnet.ui.glass.holo
@@ -100,23 +104,25 @@ fun HomeScreen(
     ) {
         item {
             Column(Modifier.statusBarsPadding().padding(start = 4.dp, top = 12.dp)) {
-                Strong("Carnet", size = 28.sp)
+                Text("Carnet", fontFamily = com.personal.carnet.ui.glass.InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, letterSpacing = (-0.6).sp, color = Palette.Ink)
                 Label(todayText())
             }
         }
         if (update is UpdateState.Available || update is UpdateState.Downloading) {
             item {
                 val build = (update as? UpdateState.Available)?.info?.build ?: (update as UpdateState.Downloading).info.build
+                // 有新版本：一条轻的玻璃，左边一颗靛蓝小水珠，不压着整页
                 Row(
-                    Modifier.fillMaxWidth().tinted(RoundedCornerShape(20.dp), Palette.Cta).jelly(onClick = onOpenUpdate).padding(horizontal = 16.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().glassControl(RoundedCornerShape(20.dp)).jelly(onClick = onOpenUpdate).padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Sparkle(Color.White, 16.dp)
+                    androidx.compose.foundation.Canvas(Modifier.size(14.dp)) { glassSphere(center, size.minDimension / 2, Palette.Violet, shadow = false) }
                     Text(
-                        if (update is UpdateState.Downloading) "正在下载 build $build…" else "有新版本 build $build，点这里更新",
-                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                        if (update is UpdateState.Downloading) "正在下载 build $build…" else "有新版本 build $build",
+                        color = Palette.Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f),
                     )
+                    if (update !is UpdateState.Downloading) Strong("更新", size = 14.sp, color = Palette.Violet)
                 }
             }
         }
@@ -200,8 +206,8 @@ fun HomeScreen(
         if (entries.isEmpty()) {
             item { GlassCard { Label("还没有记账。点右下角的 ＋ 记第一笔。", weight = FontWeight.Medium) } }
         }
-        items(entries, key = { it.id }) { entry ->
-            EntryRow(entry.line(accounts, ledgers), onClick = { onOpenEntry(entry) })
+        if (entries.isNotEmpty()) {
+            item(key = "bubbles") { BubbleStream(entries, accounts, ledgers, snapshot.rate, onOpen = onOpenEntry) }
         }
     }
 }
@@ -218,7 +224,7 @@ private fun ForecastCard(f: com.personal.carnet.domain.Forecast) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Strong("还款预测", modifier = Modifier.weight(1f))
-            Label(if (open) "收起" else "展开", size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+            Label(if (open) "收起" else "展开", size = 12.sp, weight = FontWeight.SemiBold, color = Palette.Violet)
         }
         if (short == null) {
             Strong("接下来 ${f.until.monthValue}/${f.until.dayOfMonth} 前的卡都还得上 ✓", size = 14.sp, color = Palette.Teal)
@@ -235,24 +241,24 @@ private fun ForecastCard(f: com.personal.carnet.domain.Forecast) {
         f.lowest?.let { low ->
             Label(
                 "最少的时候：${low.date.monthValue}/${low.date.dayOfMonth} " + forecastLabel(low) + " 后剩 " + Money.format(low.balance, MainCurrency),
-                size = 12.sp, weight = FontWeight.Bold, color = if (low.balance < 0) Palette.Rose else Palette.Ink,
+                size = 12.sp, weight = FontWeight.SemiBold, color = if (low.balance < 0) Palette.Rose else Palette.Ink,
             )
         }
         if (open) {
             Row {
                 Label("现在能用", size = 12.sp, modifier = Modifier.weight(1f))
-                Label(Money.format(f.start, MainCurrency), size = 12.sp, weight = FontWeight.Bold)
+                Label(Money.format(f.start, MainCurrency), size = 12.sp, weight = FontWeight.SemiBold)
             }
             f.items.forEach { item ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Label("${item.date.monthValue}/${item.date.dayOfMonth}", size = 12.sp, weight = FontWeight.Bold, modifier = Modifier.width(40.dp))
+                    Label("${item.date.monthValue}/${item.date.dayOfMonth}", size = 12.sp, weight = FontWeight.SemiBold, modifier = Modifier.width(40.dp))
                     Label(forecastLabel(item), size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.weight(1f))
                     Label(
                         (if (item.cents > 0) "+" else "") + Money.format(item.cents, MainCurrency),
-                        size = 12.sp, weight = FontWeight.Bold, color = if (item.cents > 0) Palette.Teal else Palette.Ink,
+                        size = 12.sp, weight = FontWeight.SemiBold, color = if (item.cents > 0) Palette.Teal else Palette.Ink,
                     )
                     Label(
-                        Money.format(item.balance, MainCurrency), size = 12.sp, weight = FontWeight.Bold,
+                        Money.format(item.balance, MainCurrency), size = 12.sp, weight = FontWeight.SemiBold,
                         color = if (item.balance < 0) Palette.Rose else Palette.Muted, modifier = Modifier.width(92.dp),
                     )
                 }
@@ -278,75 +284,71 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
         shown.animateTo(snapshot.netWorthCents.toFloat(), tween(1400, easing = FastOutSlowInEasing))
     }
     val plan = snapshot.plan
-    Column(
-        Modifier.fillMaxWidth().holo(RoundedCornerShape(32.dp)).padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Label("净资产", weight = FontWeight.Bold)
-                Text(
-                    Money.format(shown.value.toLong(), MainCurrency),
-                    fontSize = 38.sp, fontWeight = FontWeight.Bold, color = Palette.Ink,
-                )
-            }
-            Sparkle(Color.White, 22.dp)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val spendable = plan.spendableCents
-            val payday = plan.payday
+    val spendable = plan.spendableCents
+    val payday = plan.payday
+    val level = remember(snapshot) { com.personal.carnet.ui.glass.cupLevel(snapshot) }
+    val cash = snapshot.mainCashCents + snapshot.cnyCashInMainCents
+    val split = if (cash > 0) snapshot.mainCashCents.toFloat() / cash else 1f
+    var formula by rememberSaveable { mutableStateOf(false) }
+    val shared = snapshot.sharedBalanceCents
+
+    Box(Modifier.fillMaxWidth().holo(RoundedCornerShape(32.dp)).jelly { formula = !formula }) {
+        // 杯子从金额下面开始：标题永远露在液面上
+        MoneyVessel(level, split, Modifier.matchParentSize().padding(top = 128.dp))
+        Column(Modifier.fillMaxWidth().padding(22.dp)) {
+            Label("净资产", weight = FontWeight.SemiBold)
+            com.personal.carnet.ui.glass.GlassNumber(Money.format(shown.value.toLong(), MainCurrency), size = 42.sp)
+            // 留出杯子上半截的空：液面在这里晃
+            Spacer(Modifier.height(if (formula) 24.dp else 96.dp))
+            // 和杯子里一样：人民币浮在上面，新币沉在下面
+            VesselRow("国内账户", Money.format(snapshot.cnyCashCents, Currency.CNY), "≈ " + Money.format(snapshot.cnyCashInMainCents, MainCurrency), onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Cny.last())
             if (spendable != null && payday != null) {
                 val days = ChronoUnit.DAYS.between(LocalDate.now(), payday)
-                Tile("发薪前还能花", Money.format(spendable, MainCurrency), Modifier.weight(1f), onOpenRecurring, sub = "${payday.monthValue}/${payday.dayOfMonth} 发薪，还有 $days 天")
+                VesselRow("发薪前还能花", Money.format(spendable, MainCurrency), "还有 $days 天发薪", onOpenRecurring, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
             } else {
-                Tile("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), Modifier.weight(1f), onOpenAccounts, sub = "设好工资就能算发薪前还能花")
+                VesselRow("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), "设好工资，杯子就按工资算满", onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
             }
-            Tile(
-                "国内账户",
-                Money.format(snapshot.cnyCashCents, Currency.CNY),
-                Modifier.weight(1f),
-                onOpenAccounts,
-                sub = "≈ " + Money.format(snapshot.cnyCashInMainCents, MainCurrency),
-            )
-        }
-        val shared = snapshot.sharedBalanceCents
-        if (shared != 0L) {
-            Tile(
-                if (shared > 0) "你多垫的" else "${Partner.name}帮你垫的",
-                Money.format(kotlin.math.abs(shared), MainCurrency),
-                Modifier.fillMaxWidth(),
-                onOpenLedgers,
-                valueColor = Palette.Rose,
-            )
-        }
-        Label(
-            buildString {
-                append("新币 ${Money.format(snapshot.mainCashCents)} + 国内 ≈ ${Money.format(snapshot.cnyCashInMainCents)}")
-                append(" − 信用卡 ${Money.format(snapshot.cardsOwedCents)}")
-                if (shared != 0L) append(if (shared > 0) " + 你多垫的 ${Money.format(shared)}" else " − ${Partner.name}垫的 ${Money.format(-shared)}")
-            },
-            size = 12.sp, weight = FontWeight.Medium,
-        )
-        val parts = plan.spendableParts
-        if (parts.isNotEmpty()) {
-            Label(
-                "发薪前还能花 = " + Money.format(parts.first().second) + "（能用的账户）" +
-                    parts.drop(1).joinToString("") { (name, cents) -> " − $name ${Money.format(cents)}" },
-                size = 12.sp, weight = FontWeight.Medium,
-            )
+            if (shared != 0L) {
+                VesselRow(
+                    if (shared > 0) "你多垫的" else "${Partner.name}帮你垫的",
+                    Money.format(kotlin.math.abs(shared), MainCurrency), null, onOpenLedgers, Palette.Rose,
+                )
+            }
+            if (formula) {
+                Label(
+                    buildString {
+                        append("新币 ${Money.format(snapshot.mainCashCents)} + 国内 ≈ ${Money.format(snapshot.cnyCashInMainCents)}")
+                        append(" − 信用卡 ${Money.format(snapshot.cardsOwedCents)}")
+                        if (shared != 0L) append(if (shared > 0) " + 你多垫的 ${Money.format(shared)}" else " − ${Partner.name}垫的 ${Money.format(-shared)}")
+                    },
+                    size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 10.dp),
+                )
+                val parts = plan.spendableParts
+                if (parts.isNotEmpty()) {
+                    Label(
+                        "发薪前还能花 = " + Money.format(parts.first().second) + "（能用的账户）" +
+                            parts.drop(1).joinToString("") { (name, cents) -> " − $name ${Money.format(cents)}" },
+                        size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Label("下层蓝的是新币，上层粉的是人民币；液面越低，离发薪越近、能花的越少。", size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 4.dp))
+            }
         }
     }
 }
 
+/** 杯子里的一行：左边名字和小字，右边金额；字直接写在液体上 */
 @Composable
-private fun Tile(
-    label: String, value: String, modifier: Modifier, onClick: () -> Unit,
-    sub: String? = null, valueColor: Color = Palette.Ink,
-) {
-    Column(modifier.glassControl(RoundedCornerShape(20.dp)).jelly(onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Label(label, size = 12.sp)
+private fun VesselRow(label: String, value: String, sub: String?, onClick: () -> Unit, valueColor: Color = Palette.Ink, dot: Color? = null) {
+    Row(Modifier.fillMaxWidth().jelly(onClick = onClick).padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 小圆点是这一行对应的那层液体的颜色
+        Box(Modifier.padding(end = 10.dp).size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dot ?: Color.Transparent)
+            .then(if (dot != null) Modifier.border(1.dp, Color.White.copy(alpha = 0.8f), androidx.compose.foundation.shape.CircleShape) else Modifier))
+        Column(Modifier.weight(1f)) {
+            Label(label, size = 13.sp, weight = FontWeight.SemiBold, color = Palette.Ink.copy(alpha = 0.78f))
+            if (sub != null) Label(sub, size = 11.sp, weight = FontWeight.Medium, color = Palette.Ink.copy(alpha = 0.62f))
+        }
         Strong(value, size = 18.sp, color = valueColor)
-        if (sub != null) Label(sub, size = 11.sp)
     }
 }
 
@@ -409,7 +411,7 @@ fun EntryRow(line: EntryLine, onClick: (() -> Unit)? = null) {
     ) {
         IconTile(line.icon)
         Column(Modifier.weight(1f)) {
-            Text(line.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(line.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Label(line.meta, size = 12.sp, weight = FontWeight.Medium)
         }
         Column(horizontalAlignment = Alignment.End) {
