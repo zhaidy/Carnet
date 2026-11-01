@@ -35,6 +35,7 @@ import com.personal.carnet.domain.Money
 import com.personal.carnet.domain.Snapshot
 import com.personal.carnet.ui.IconPaths
 import com.personal.carnet.ui.LineIcon
+import com.personal.carnet.ui.components.IconTile
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.GlassCard
 import com.personal.carnet.ui.components.GlassField
@@ -132,9 +133,7 @@ private fun AccountCard(view: AccountView, rate: FxRate, onClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-                LineIcon(icon, Palette.Ink, size = 18.dp)
-            }
+            IconTile(icon, size = 38.dp, key = a.type.name)
             Column(Modifier.weight(1f)) {
                 Strong(a.name)
                 Label(a.type.label + " · " + a.currency.label, size = 12.sp)

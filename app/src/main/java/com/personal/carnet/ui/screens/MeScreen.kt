@@ -32,6 +32,7 @@ import com.personal.carnet.domain.Snapshot
 import com.personal.carnet.ui.IconPaths
 import com.personal.carnet.ui.LineIcon
 import com.personal.carnet.ui.UpdateState
+import com.personal.carnet.ui.components.IconTile
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.Label
 import com.personal.carnet.ui.components.ScreenHeader
@@ -166,9 +167,7 @@ private fun MenuRow(icon: String, title: String, sub: String, onClick: () -> Uni
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-            LineIcon(icon, Palette.Ink, size = 20.dp)
-        }
+        IconTile(icon)
         Column(Modifier.weight(1f)) {
             Strong(title)
             Label(sub, size = 12.sp, weight = FontWeight.Medium)

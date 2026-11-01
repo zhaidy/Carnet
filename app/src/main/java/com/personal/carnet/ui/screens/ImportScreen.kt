@@ -93,7 +93,7 @@ fun ImportScreen(snapshot: Snapshot, vm: MainViewModel, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("导入账单", onBack = { vm.resetImport(); onBack() })
+        ScreenHeader("导入账单", onBack = { vm.resetImport(); onBack() }, modifier = Modifier.padding(horizontal = 16.dp))
         when (val s = state) {
             is ImportState.Preview -> Preview(snapshot, s.fileName, s.sheet, onPickAgain = ::pick) { choices, ledgerId, settled ->
                 vm.runImport(s.sheet.rows, choices, ledgerId, settled)

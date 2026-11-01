@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,11 +33,14 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 
 /** 液态玻璃的配色：深紫墨色的字，紫到玫红的强调色 */
 object Palette {
     val Ink = Color(0xFF1F1640)
-    val Muted = Color(0xFF3F3560)
+    /** 次要文字：比正文浅一档，拉开主次；玻璃上对比度仍在 6:1 左右 */
+    val Muted = Color(0xFF5A5180)
     val Violet = Color(0xFF5438C4)
     val Rose = Color(0xFF8E2457)
     val Teal = Color(0xFF0A6B64)
@@ -47,10 +51,30 @@ object Palette {
     val Selected = Brush.verticalGradient(listOf(Color(0xF27C60F0), Color(0xF25438C4)))
     val Cta = Brush.linearGradient(listOf(Color(0xF57656EC), Color(0xF5A046BE), Color(0xF5BE3C82)))
 
+    /** 图标格子的几种柔和底色（底色, 图标色），按图标挑一种，同一个分类永远是同一种颜色 */
+    private val Tints = listOf(
+        Color(0xFFE9E2FF) to Color(0xFF5438C4),
+        Color(0xFFFCE1EE) to Color(0xFFA3326A),
+        Color(0xFFD8F3EE) to Color(0xFF0A6B64),
+        Color(0xFFFDEBD3) to Color(0xFF8A4A08),
+        Color(0xFFDDE8FF) to Color(0xFF2F55B8),
+        Color(0xFFF3E0FA) to Color(0xFF7B2F9A),
+    )
+
+    fun tintFor(key: String): Pair<Color, Color> = Tints[Math.floorMod(key.hashCode(), Tints.size)]
+
     val Holo = listOf(
         Color(0xBFFFC4E6), Color(0x99DECEFF), Color(0x99BCE0FF), Color(0x8CD6FCEE), Color(0xB3FFEEC4),
         Color(0x99DECEFF), Color(0xBFFFC4E6),
     )
+}
+
+/**
+ * 全局字体：行高跟着字号走（Material 默认的 24sp 固定行高放到 12、13sp 的说明文字上，行距会空得很开），
+ * 数字用等宽（tnum），金额上下行能对齐、变化时不跳
+ */
+val CarnetTypography: Typography = Typography().let { t ->
+    t.copy(bodyLarge = t.bodyLarge.copy(lineHeight = 1.4.em, letterSpacing = 0.sp, fontFeatureSettings = "tnum"))
 }
 
 private val GlassFill = Brush.linearGradient(
@@ -116,7 +140,7 @@ fun Modifier.jelly(enabled: Boolean = true, onClick: () -> Unit): Modifier {
         .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
 }
 
-/** 背景：几团淡彩光慢慢漂，还有一层白色水波纹在流 */
+/** 背景：几团淡彩光慢慢漂，还有一层很淡的白色水波纹在流（压得很轻，不和卡片里的字抢） */
 @Composable
 fun LiquidBackground(modifier: Modifier = Modifier) {
     val t = rememberInfiniteTransition(label = "bg")
@@ -151,7 +175,7 @@ fun LiquidBackground(modifier: Modifier = Modifier) {
                 path.quadraticTo(x + unit * 1.5f, y + amp, x + unit * 2, y)
                 x += unit * 2
             }
-            drawPath(path, Color.White.copy(alpha = 0.32f), style = stroke)
+            drawPath(path, Color.White.copy(alpha = 0.14f), style = stroke)
             y += 70.dp.toPx()
         }
     }
@@ -159,7 +183,7 @@ fun LiquidBackground(modifier: Modifier = Modifier) {
 
 private fun DrawScope.blob(color: Color, center: Offset, radius: Float) {
     drawCircle(
-        Brush.radialGradient(listOf(color.copy(alpha = 0.42f), color.copy(alpha = 0f)), center = center, radius = radius),
+        Brush.radialGradient(listOf(color.copy(alpha = 0.34f), color.copy(alpha = 0f)), center = center, radius = radius),
         radius = radius,
         center = center,
     )

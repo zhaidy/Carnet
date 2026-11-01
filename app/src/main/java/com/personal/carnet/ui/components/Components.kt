@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,7 +71,7 @@ import com.personal.carnet.ui.glass.tinted
 import kotlinx.coroutines.delay
 
 @Composable
-fun Label(text: String, size: TextUnit = 13.sp, color: Color = Palette.Muted, weight: FontWeight = FontWeight.SemiBold, modifier: Modifier = Modifier) {
+fun Label(text: String, size: TextUnit = 13.sp, color: Color = Palette.Muted, weight: FontWeight = FontWeight.Medium, modifier: Modifier = Modifier) {
     Text(text, fontSize = size, color = color, fontWeight = weight, modifier = modifier)
 }
 
@@ -264,10 +265,22 @@ fun GlassField(
     )
 }
 
+/** 圆角方块里放一个线条图标，带一点按图标挑的颜色 */
 @Composable
-fun Avatar(text: String, her: Boolean, size: Dp = 32.dp) {
+fun IconTile(icon: String, size: Dp = 42.dp, key: String = icon) {
+    val (bg, fg) = Palette.tintFor(key)
     Box(
-        Modifier.size(size).clip(CircleShape).background(if (her) Palette.HerAvatar else Palette.MeAvatar),
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.33f)).background(bg.copy(alpha = 0.88f)),
+        contentAlignment = Alignment.Center,
+    ) { LineIcon(icon, fg, size = size * 0.46f, width = 1.9f) }
+}
+
+@Composable
+fun Avatar(text: String, her: Boolean, size: Dp = 32.dp, ring: Boolean = false) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(if (her) Palette.HerAvatar else Palette.MeAvatar)
+            // 两个头像叠着放时，压在上面的那个描一圈白边，下面的字不会看起来被切掉
+            .then(if (ring) Modifier.border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.4f).sp)
@@ -276,16 +289,24 @@ fun Avatar(text: String, her: Boolean, size: Dp = 32.dp) {
 
 /** 顶部：返回或关闭 + 标题 + 右边可选的按钮 */
 @Composable
-fun ScreenHeader(title: String, backIcon: String? = IconPaths.BACK, onBack: (() -> Unit)? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+fun ScreenHeader(
+    title: String,
+    backIcon: String? = IconPaths.BACK,
+    onBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    // 左右不留边：放在已经有 16dp 边距的列表里，返回键和卡片左边对齐；没有返回键时标题再缩 4dp，和总览的「Carnet」对齐
     Row(
-        Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+        modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (onBack != null && backIcon != null) RoundGlassButton(backIcon, if (backIcon == IconPaths.CLOSE) "关闭" else "返回", onClick = onBack)
-        else Spacer(Modifier.width(8.dp))
+        val hasBack = onBack != null && backIcon != null
+        if (hasBack) RoundGlassButton(backIcon!!, if (backIcon == IconPaths.CLOSE) "关闭" else "返回", onClick = onBack!!)
         Text(
-            title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f),
+            title, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.Ink,
+            modifier = Modifier.weight(1f).padding(start = if (hasBack) 0.dp else 4.dp),
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
         trailing()

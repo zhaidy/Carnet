@@ -148,7 +148,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader(if (old != null) "改账本" else "新建账本", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改账本" else "新建账本", IconPaths.CLOSE, onBack = onDone, modifier = Modifier.padding(horizontal = 16.dp))
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -161,9 +161,9 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                     Label(currency?.let { it.symbol + " " + it.label } ?: currencyLabel, weight = FontWeight.Bold)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.size(width = if (withHer) 50.dp else 32.dp, height = 32.dp)) {
+                    Box(Modifier.size(width = if (withHer) 54.dp else 32.dp, height = 32.dp)) {
                         Avatar("我", her = false)
-                        if (withHer) Box(Modifier.padding(start = 18.dp)) { Avatar(Partner.initial, her = true) }
+                        if (withHer) Box(Modifier.padding(start = 22.dp)) { Avatar(Partner.initial, her = true, ring = true) }
                     }
                     Label(summary, size = 13.sp, color = Palette.Ink)
                 }
