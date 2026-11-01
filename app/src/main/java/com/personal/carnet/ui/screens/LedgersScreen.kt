@@ -196,9 +196,9 @@ private fun LedgerCard(
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.jelly(onClick = onEdit), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (l.shared) {
-                Box(Modifier.size(width = 50.dp, height = 34.dp)) {
+                Box(Modifier.size(width = 54.dp, height = 34.dp)) {
                     Avatar("我", her = false)
-                    Box(Modifier.padding(start = 18.dp)) { Avatar(Partner.initial, her = true) }
+                    Box(Modifier.padding(start = 22.dp)) { Avatar(Partner.initial, her = true, ring = true) }
                 }
             } else {
                 Avatar("我", her = false, size = 40.dp)

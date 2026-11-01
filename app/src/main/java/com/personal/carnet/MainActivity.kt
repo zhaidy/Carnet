@@ -13,6 +13,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.personal.carnet.ui.CarnetRoot
 import com.personal.carnet.ui.MainViewModel
+import com.personal.carnet.ui.glass.CarnetTypography
 import com.personal.carnet.ui.glass.Palette
 import com.personal.carnet.update.AppNotifications
 
@@ -38,7 +39,7 @@ class MainActivity : ComponentActivity() {
         }
         val app = application as CarnetApp
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme(primary = Palette.Violet, onSurface = Palette.Ink)) {
+            MaterialTheme(colorScheme = lightColorScheme(primary = Palette.Violet, onSurface = Palette.Ink), typography = CarnetTypography) {
                 val vm: MainViewModel = viewModel { MainViewModel(app.repository, app.updater, app.autoSettings, app.assistant, app.autoRecorder, app.sync) }
                 CarnetRoot(vm, openRoute) { openRoute.value = null }
             }

@@ -90,7 +90,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
     val rate = FxRate.parse(rateText)
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader(if (old != null) "改账户" else "新建账户", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改账户" else "新建账户", IconPaths.CLOSE, onBack = onDone, modifier = Modifier.padding(horizontal = 16.dp))
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

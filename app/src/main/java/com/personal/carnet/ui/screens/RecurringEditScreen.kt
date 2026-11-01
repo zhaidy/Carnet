@@ -132,7 +132,7 @@ fun RecurringEditScreen(snapshot: Snapshot, vm: MainViewModel, onDone: () -> Uni
     val ledger = ledgers.firstOrNull { it.id == ledgerId }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenHeader(if (old != null) "改固定收支" else "新建固定收支", IconPaths.CLOSE, onBack = onDone)
+        ScreenHeader(if (old != null) "改固定收支" else "新建固定收支", IconPaths.CLOSE, onBack = onDone, modifier = Modifier.padding(horizontal = 16.dp))
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

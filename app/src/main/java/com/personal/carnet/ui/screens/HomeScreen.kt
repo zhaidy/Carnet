@@ -48,6 +48,7 @@ import com.personal.carnet.ui.EntryLine
 import com.personal.carnet.ui.LineIcon
 import com.personal.carnet.ui.Sparkle
 import com.personal.carnet.ui.UpdateState
+import com.personal.carnet.ui.components.IconTile
 import com.personal.carnet.ui.components.ChipRow
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.GlassCard
@@ -262,7 +263,8 @@ private fun ForecastCard(f: com.personal.carnet.domain.Forecast) {
 }
 
 private fun forecastLabel(item: com.personal.carnet.domain.ForecastItem): String = when (item.kind) {
-    com.personal.carnet.domain.ForecastItem.Kind.CARD -> "还" + item.name.removePrefix("还")
+    // 卡名是英文开头时（UOB 信用卡）中间空一格
+    com.personal.carnet.domain.ForecastItem.Kind.CARD -> item.name.removePrefix("还").let { n -> if (n.firstOrNull()?.code?.let { it < 128 } == true) "还 $n" else "还$n" }
     com.personal.carnet.domain.ForecastItem.Kind.FIXED -> item.name
     com.personal.carnet.domain.ForecastItem.Kind.SETTLE ->
         if (item.cents > 0) "${Partner.name}转「${item.name}」" else "补给${Partner.name}「${item.name}」"
@@ -405,10 +407,7 @@ fun EntryRow(line: EntryLine, onClick: (() -> Unit)? = null) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.6f)),
-            contentAlignment = Alignment.Center,
-        ) { LineIcon(line.icon, Palette.Ink, size = 20.dp, width = 1.7f) }
+        IconTile(line.icon)
         Column(Modifier.weight(1f)) {
             Text(line.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Label(line.meta, size = 12.sp, weight = FontWeight.Medium)

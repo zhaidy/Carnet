@@ -35,6 +35,7 @@ import com.personal.carnet.domain.Schedule
 import com.personal.carnet.domain.Snapshot
 import com.personal.carnet.ui.IconPaths
 import com.personal.carnet.ui.LineIcon
+import com.personal.carnet.ui.components.IconTile
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.GlassCard
 import com.personal.carnet.ui.components.Label
@@ -116,9 +117,7 @@ fun RecurringScreen(
             ).joinToString(" · ")
             Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).jelly { open = if (open == rule.id) null else rule.id }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-                        LineIcon(icon, Palette.Ink, size = 20.dp)
-                    }
+                    IconTile(icon)
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Strong(rule.name)
