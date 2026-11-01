@@ -54,6 +54,8 @@ data class Ledger(
     val createdAt: Long = System.currentTimeMillis(),
     /** 和她同步时的邀请码；没同步是 null */
     val syncCode: String? = null,
+    /** 共用账本里每一笔默认对方出固定多少（账本货币），比如房租；null 是按比例。只在本机，不同步 */
+    val herFixedCents: Long? = null,
 )
 
 enum class EntryKind { EXPENSE, INCOME, TRANSFER }

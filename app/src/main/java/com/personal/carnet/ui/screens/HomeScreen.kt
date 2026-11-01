@@ -258,6 +258,14 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
             },
             size = 12.sp, weight = FontWeight.Medium,
         )
+        val parts = plan.spendableParts
+        if (parts.isNotEmpty()) {
+            Label(
+                "发薪前还能花 = " + Money.format(parts.first().second) + "（能用的账户）" +
+                    parts.drop(1).joinToString("") { (name, cents) -> " − $name ${Money.format(cents)}" },
+                size = 12.sp, weight = FontWeight.Medium,
+            )
+        }
     }
 }
 

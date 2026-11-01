@@ -211,7 +211,12 @@ private fun LedgerCard(
                     SettleMode.DATE -> l.settleEpochDay?.let { epochDayText(it) + " 结一次" } ?: "选日期结"
                     SettleMode.MANUAL -> "想结就结"
                 }
-                val split = if (l.shared) (if (l.myPercent == 50) "平分" else "你 ${l.myPercent}%") + " · " else ""
+                val fixed = l.herFixedCents
+                val split = if (!l.shared) "" else when {
+                    fixed != null -> "${Partner.name}每笔出 " + Money.format(fixed, view.currency)
+                    l.myPercent == 50 -> "平分"
+                    else -> "你 ${l.myPercent}%"
+                } + " · "
                 Label("$split$settle · $currency", size = 12.sp, weight = FontWeight.Medium)
             }
             Column(horizontalAlignment = Alignment.End) {

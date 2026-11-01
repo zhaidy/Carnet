@@ -19,8 +19,8 @@ object EntryFactory {
         currency: Currency,
         rate: FxRate,
         timeMillis: Long = System.currentTimeMillis(),
-        /** 共用账本里对方出固定多少，按账本货币；null 是按比例 */
-        herCents: Long? = null,
+        /** 共用账本里对方出固定多少，按账本货币；null 是按比例。不传就用账本的默认 */
+        herCents: Long? = ledger.herFixedCents,
     ): Entry {
         val paidByHer = kind == EntryKind.EXPENSE && ledger.shared && payer == Payer.HER
         val accountCents = if (paidByHer || account == null) 0 else rate.convert(amountCents, currency, account.currency)

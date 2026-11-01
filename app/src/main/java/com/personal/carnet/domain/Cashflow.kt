@@ -33,6 +33,8 @@ data class Plan(
     val spendableCents: Long?,
     /** 每月固定支出里你那份，按主货币 */
     val monthlyFixedCents: Long,
+    /** 发薪前还能花是怎么算的：第一项是能用的钱，后面是要扣的（名字、主货币金额） */
+    val spendableParts: List<Pair<String, Long>> = emptyList(),
 )
 
 object Cashflow {
@@ -186,14 +188,16 @@ object Cashflow {
             .mapNotNull { rule -> Schedule.occurrences(rule, maxOf(today, LocalDate.ofEpochDay(rule.lastDoneEpochDay)), horizon).firstOrNull() }
             .minOrNull()
 
+        val parts = mutableListOf<Pair<String, Long>>()
         val spendable = payday?.let { pay ->
             val cash = accounts.filter { it.inCashflow && it.type != AccountType.CREDIT }
             val cashIds = cash.map { it.id }.toSet()
             val have = cash.sumOf { rate.convert(balances[it.id] ?: 0, it.currency, MainCurrency) }
             // 发薪前（含发薪当天）从这些账户出去的：没确认的 + 接下来的
-            val out = (pending + upcoming)
-                .filter { !it.inflow && !it.date.isAfter(pay) && it.rule.accountId in cashIds }
-                .sumOf { rate.convert(it.cents, it.currency, MainCurrency) }
+            parts += "能用的账户" to have
+            val outs = (pending + upcoming).filter { !it.inflow && !it.date.isAfter(pay) && it.rule.accountId in cashIds }
+            outs.forEach { parts += it.rule.name to rate.convert(it.cents, it.currency, MainCurrency) }
+            val out = outs.sumOf { rate.convert(it.cents, it.currency, MainCurrency) }
             // 没建还卡规则的信用卡：按卡上设的还款日，发薪前要还的也扣掉
             val ruled = active.filter { it.kind == RuleKind.CARD_PAYMENT }.mapNotNull { it.toAccountId }.toSet()
             val cards = accounts.filter { it.type == AccountType.CREDIT && it.id !in ruled }.sumOf { card ->
@@ -201,6 +205,7 @@ object Cashflow {
                 val owedNow = (-(balances[card.id] ?: 0L)).coerceAtLeast(0)
                 if (due == null || due.isAfter(pay) || owedNow == 0L) 0L
                 else rate.convert(cardDueOn(card, due, owedNow, entries, today), card.currency, MainCurrency)
+                    .also { if (it > 0) parts += "${due.monthValue}/${due.dayOfMonth} 还${card.name}" to it }
             }
             have - out - cards
         }
@@ -220,6 +225,6 @@ object Cashflow {
             rate.convert(mine, rule.currency, MainCurrency)
         }
 
-        return Plan(pending, upcoming, payday, spendable, monthly)
+        return Plan(pending, upcoming, payday, spendable, monthly, parts)
     }
 }
