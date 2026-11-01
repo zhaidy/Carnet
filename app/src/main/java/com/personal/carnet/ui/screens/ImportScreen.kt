@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -183,7 +185,7 @@ private fun Preview(
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Label("你付 " + Money.format(totalMain - herMain), size = 12.sp)
-                        Label("她付 " + Money.format(herMain), size = 12.sp)
+                        Label("${Partner.name}付 " + Money.format(herMain), size = 12.sp)
                     }
                 }
                 val max = (months.values.maxOrNull() ?: 1L).coerceAtLeast(1L)
@@ -213,7 +215,7 @@ private fun Preview(
                 add("new:${AccountType.CREDIT.name}" to "新建信用卡")
                 add("new:${AccountType.DEBIT.name}" to "新建储蓄卡")
                 add("new:${AccountType.WALLET.name}" to "新建电子钱包")
-                add("her" to "她付的")
+                add("her" to "${Partner.name}付的")
             }
             Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(22.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

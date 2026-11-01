@@ -51,7 +51,7 @@ fun Entry.line(accounts: Map<Long, Account>, ledgers: Map<Long, Ledger>): EntryL
             val cat = Categories.of(category)
             val ledger = ledgers[ledgerId]
             val who = when {
-                payer == Payer.HER -> "她付"
+                payer == Payer.HER -> "${Partner.name}付"
                 accountName != null -> accountName
                 else -> null
             }

@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -241,7 +243,7 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
         val shared = snapshot.sharedBalanceCents
         if (shared != 0L) {
             Tile(
-                if (shared > 0) "你多垫的" else "她帮你垫的",
+                if (shared > 0) "你多垫的" else "${Partner.name}帮你垫的",
                 Money.format(kotlin.math.abs(shared), MainCurrency),
                 Modifier.fillMaxWidth(),
                 onOpenLedgers,
@@ -252,7 +254,7 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
             buildString {
                 append("新币 ${Money.format(snapshot.mainCashCents)} + 国内 ≈ ${Money.format(snapshot.cnyCashInMainCents)}")
                 append(" − 信用卡 ${Money.format(snapshot.cardsOwedCents)}")
-                if (shared != 0L) append(if (shared > 0) " + 你多垫的 ${Money.format(shared)}" else " − 她垫的 ${Money.format(-shared)}")
+                if (shared != 0L) append(if (shared > 0) " + 你多垫的 ${Money.format(shared)}" else " − ${Partner.name}垫的 ${Money.format(-shared)}")
                 if (plan.committedCents != 0L) {
                     val until = plan.committedUntil
                     val names = plan.committed.map { it.rule.name }.distinct()

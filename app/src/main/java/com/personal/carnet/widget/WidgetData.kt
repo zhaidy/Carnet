@@ -1,5 +1,7 @@
 package com.personal.carnet.widget
 
+import com.personal.carnet.ui.Partner
+
 import com.personal.carnet.domain.MainCurrency
 import com.personal.carnet.domain.Money
 import com.personal.carnet.domain.Snapshot
@@ -27,9 +29,9 @@ data class WidgetData(
                 Money.format(s.netWorthAfterFixedCents, MainCurrency) to "净资产"
             }
             val shared = if (s.ledgers.none { it.ledger.shared }) null else when {
-                s.sharedBalanceCents > 0 -> "她补你 " + Money.format(s.sharedBalanceCents, MainCurrency)
-                s.sharedBalanceCents < 0 -> "你补她 " + Money.format(-s.sharedBalanceCents, MainCurrency)
-                else -> "和她两清了"
+                s.sharedBalanceCents > 0 -> "${Partner.name}补你 " + Money.format(s.sharedBalanceCents, MainCurrency)
+                s.sharedBalanceCents < 0 -> "你补${Partner.name} " + Money.format(-s.sharedBalanceCents, MainCurrency)
+                else -> "和${Partner.name}两清了"
             }
             val upcoming = plan.upcoming.filter { !it.date.isBefore(today) }.take(4).map { occ ->
                 val day = if (occ.date == today) "今天" else "${occ.date.monthValue}/${occ.date.dayOfMonth}"

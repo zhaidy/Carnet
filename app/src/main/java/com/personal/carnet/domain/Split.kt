@@ -39,9 +39,9 @@ object Split {
         expenses.sumOf { myShare(it.cents, myPercent) }
 
     /** 给人看的一句话 */
-    fun describe(balance: Long, currency: Currency): String = when {
-        balance > 0 -> "她补你 ${Money.format(balance, currency)} 就两清"
-        balance < 0 -> "你补她 ${Money.format(-balance, currency)} 就两清"
+    fun describe(balance: Long, currency: Currency, who: String = "她"): String = when {
+        balance > 0 -> "${who}补你 ${Money.format(balance, currency)} 就两清"
+        balance < 0 -> "你补$who ${Money.format(-balance, currency)} 就两清"
         else -> "现在两清"
     }
 }

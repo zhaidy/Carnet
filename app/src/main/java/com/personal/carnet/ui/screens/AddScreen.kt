@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import com.personal.carnet.ui.Partner
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -178,7 +180,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Strong("删掉这一笔？")
                         Label(
-                            if (e.syncId != null) "她那边也会一起删掉。" else "删掉后账户余额会跟着变回去。",
+                            if (e.syncId != null) "${Partner.name}那边也会一起删掉。" else "删掉后账户余额会跟着变回去。",
                             size = 12.sp, weight = FontWeight.Medium,
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -257,7 +259,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     if (isGroup) {
                         val inLedger = rate.convert(cents, spend, ledgerCurrency)
                         val mine = Split.myShare(inLedger, ledger.myPercent)
-                        append(if (herPaid) " · 她帮你垫了 ${Money.format(mine, ledgerCurrency)}" else " · 你多垫了 ${Money.format(inLedger - mine, ledgerCurrency)}")
+                        append(if (herPaid) " · ${Partner.name}帮你垫了 ${Money.format(mine, ledgerCurrency)}" else " · 你多垫了 ${Money.format(inLedger - mine, ledgerCurrency)}")
                     }
                 }
                 toast.show(msg)
@@ -271,7 +273,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             ) {
                 if (vm.claudeReady) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlassField(sentence, { sentence = it }, "说一句：昨晚和她吃火锅 86，我付的", Modifier.weight(1f))
+                        GlassField(sentence, { sentence = it }, "说一句：昨晚和${Partner.name}吃火锅 86，我付的", Modifier.weight(1f))
                         Box(
                             Modifier.tinted(RoundedCornerShape(14.dp), Palette.Cta).jelly {
                                 if (thinking || sentence.isBlank()) return@jelly
@@ -361,10 +363,10 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     }
                 }
                 if (isGroup) {
-                    ChipRow(listOf(Payer.ME to "我", Payer.HER to "她"), payer, "谁付的") { payer = it }
+                    ChipRow(listOf(Payer.ME to "我", Payer.HER to "${Partner.name}"), payer, "谁付的") { payer = it }
                 }
                 if (herPaid) {
-                    Label("她付的，不动你的账户，只记她帮你垫了多少", modifier = Modifier.padding(start = 56.dp, top = 6.dp, bottom = 6.dp))
+                    Label("${Partner.name}付的，不动你的账户，只记${Partner.name}帮你垫了多少", modifier = Modifier.padding(start = 56.dp, top = 6.dp, bottom = 6.dp))
                 } else {
                     ChipRow(accounts.map { it.id to (it.name + " " + it.currency.symbol) }, account.id, if (isIncome) "进哪里" else "从哪付") { id ->
                         accountId = id
