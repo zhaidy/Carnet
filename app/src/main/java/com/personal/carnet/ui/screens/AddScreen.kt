@@ -105,19 +105,22 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var mode by rememberSaveable {
         mutableStateOf(when (e?.kind) { EntryKind.INCOME -> Mode.INCOME; EntryKind.TRANSFER -> Mode.TRANSFER; else -> Mode.EXPENSE })
     }
-    var ledgerId by rememberSaveable { mutableStateOf(spending?.ledgerId ?: personal?.id) }
+    // 新记一笔：用「我的 → 记账默认」里设的账本、账户
+    val defaultLedger = if (e == null) ledgers.firstOrNull { it.id == com.personal.carnet.ui.AddDefaults.ledgerId } else null
+    val defaultAccount = accounts.firstOrNull { it.id == com.personal.carnet.ui.AddDefaults.accountId } ?: accounts.firstOrNull()
+    var ledgerId by rememberSaveable { mutableStateOf(spending?.ledgerId ?: defaultLedger?.id ?: personal?.id) }
     var payer by rememberSaveable { mutableStateOf(spending?.payer ?: Payer.ME) }
-    var accountId by rememberSaveable { mutableStateOf(spending?.accountId ?: accounts.firstOrNull()?.id) }
-    var spend by rememberSaveable { mutableStateOf(spending?.currency ?: accounts.firstOrNull()?.currency ?: MainCurrency) }
+    var accountId by rememberSaveable { mutableStateOf(spending?.accountId ?: defaultAccount?.id) }
+    var spend by rememberSaveable { mutableStateOf(spending?.currency ?: defaultLedger?.currency ?: defaultAccount?.currency ?: MainCurrency) }
     var category by rememberSaveable { mutableStateOf(spending?.category ?: "food") }
     var amount by rememberSaveable { mutableStateOf(spending?.let { plain(it.amountCents) } ?: "") }
     var rateText by rememberSaveable { mutableStateOf(spending?.rate?.let { FxRate.format(it) } ?: "") }
     var rateOpen by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf(e?.note ?: "") }
     // 共用账本：按账本比例分，还是对方出固定金额（按账本货币）
-    var fixedSplit by rememberSaveable { mutableStateOf(spending?.herCents != null) }
+    var fixedSplit by rememberSaveable { mutableStateOf(spending?.herCents != null || (e == null && defaultLedger?.herFixedCents != null)) }
     var addingCategory by rememberSaveable { mutableStateOf(false) }
-    var herText by rememberSaveable { mutableStateOf(spending?.herCents?.let { plain(it) } ?: "") }
+    var herText by rememberSaveable { mutableStateOf((spending?.herCents ?: defaultLedger?.herFixedCents.takeIf { e == null })?.let { plain(it) } ?: "") }
     var day by rememberSaveable { mutableLongStateOf(e?.let { EntrySearch.dateOf(it).toEpochDay() } ?: LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     var sentence by rememberSaveable { mutableStateOf("") }

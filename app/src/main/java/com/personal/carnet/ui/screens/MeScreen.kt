@@ -69,6 +69,7 @@ fun MeScreen(
         item { MenuRow(IconPaths.SPARKLE_LINE, "自动记账和 Claude", "Google 钱包付款自动记一笔；Claude API Key", onOpenAuto) }
         item { MenuRow(IconPaths.IMPORT, "导入随手记", "选随手记导出的 Excel 或 CSV", onOpenImport) }
         item { MenuRow(IconPaths.SWAP, "默认汇率", "1 S$ = ¥" + FxRate.format(snapshot.rate.cnyPerSgd) + " · 在账户页改", onOpenAccounts) }
+        item { AddDefaultsCard(snapshot) }
         item { PartnerCard() }
         item { CustomCategoryCard() }
         item { UpdateCard(update, currentBuild, onCheckUpdate, onInstall) }
@@ -96,6 +97,26 @@ private fun CustomCategoryCard() {
                 }
             }
         }
+    }
+}
+
+/** 记一笔时默认记到哪个账本、从哪个账户付 */
+@Composable
+private fun AddDefaultsCard(snapshot: Snapshot) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val d = com.personal.carnet.ui.AddDefaults
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Strong("记账默认")
+        Label("点 ＋ 记一笔时先选好的；那一笔不一样的话再手动换。", size = 12.sp, weight = FontWeight.Medium)
+        com.personal.carnet.ui.components.ChipRow(
+            listOf<Pair<Long?, String>>(null to "个人") + snapshot.ledgers.map { it.ledger }.filter { it.shared || snapshot.ledgers.count { v -> !v.ledger.shared } > 1 }
+                .map { it.id to it.name },
+            d.ledgerId, "记到",
+        ) { d.setLedger(context, it) }
+        com.personal.carnet.ui.components.ChipRow(
+            listOf<Pair<Long?, String>>(null to "第一个") + snapshot.accounts.map { it.account.id to it.account.name },
+            d.accountId, "从哪付",
+        ) { d.setAccount(context, it) }
     }
 }
 
