@@ -1,5 +1,7 @@
 package com.personal.carnet.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -234,6 +236,11 @@ fun CarnetRoot(vm: MainViewModel, openRoute: kotlinx.coroutines.flow.StateFlow<S
                     composable(Routes.NEW_RULE) { RecurringEditScreen(snap, vm, onDone = { nav.popBackStack() }) }
                 }
                 if (route in tabs.map { it.route }) {
+                    // 底栏后面一段渐隐：滚到下面的内容慢慢淡掉，不和底栏的字叠在一起
+                    Box(
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(150.dp)
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9EAF4F8), Color(0xF2EAF4F8)))),
+                    )
                     TabBar(route, onTab = { nav.switchTab(it) }, onAdd = { nav.navigate(Routes.ADD) }, modifier = Modifier.align(Alignment.BottomCenter))
                 }
             }
@@ -259,7 +266,10 @@ private fun TabBar(current: String?, onTab: (String) -> Unit, onAdd: () -> Unit,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(
-            Modifier.weight(1f).height(64.dp).glass(RoundedCornerShape(32.dp)).padding(6.dp),
+            Modifier.weight(1f).height(64.dp)
+                // 底栏更实一点，后面的字透不过来
+                .background(Color.White.copy(alpha = 0.72f), RoundedCornerShape(32.dp))
+                .glass(RoundedCornerShape(32.dp)).padding(6.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             tabs.forEach { tab ->

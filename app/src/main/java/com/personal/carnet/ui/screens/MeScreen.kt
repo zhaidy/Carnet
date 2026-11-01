@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,23 +103,37 @@ private fun CustomCategoryCard() {
 @Composable
 private fun PartnerCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var myName by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(Partner.mine) }
     var custom by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Strong("对方的称呼")
-        Label("界面上的「${Partner.name}付」「${Partner.name}补你」「邀请${Partner.name}」都用这个。她的手机上选「他」。", size = 12.sp, weight = FontWeight.Medium)
-        com.personal.carnet.ui.components.ChipRow(listOf("她" to "她", "他" to "他"), Partner.name.takeIf { it == "她" || it == "他" }) {
-            Partner.set(context, it)
-            custom = ""
-        }
+        Strong("称呼")
+        Label("每个人设自己的，同步给对方：你设「哥哥」，对方手机上就显示「哥哥付」「哥哥补你」。", size = 12.sp, weight = FontWeight.Medium)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.personal.carnet.ui.components.GlassField(
-                custom, { custom = it.take(Partner.MAX) },
-                if (Partner.name != "她" && Partner.name != "他") "现在是「${Partner.name}」" else "或者自己起个称呼，比如 宝宝",
-                Modifier.weight(1f),
-            )
+            Label("我叫", modifier = Modifier.width(44.dp))
+            com.personal.carnet.ui.components.GlassField(myName, { myName = it.take(Partner.MAX) }, "对方那边怎么叫你", Modifier.weight(1f))
             Box(Modifier.glass(RoundedCornerShape(14.dp)).jelly {
-                if (custom.isNotBlank()) { Partner.set(context, custom); custom = "" }
-            }.padding(horizontal = 14.dp, vertical = 10.dp)) { Strong("用这个", size = 13.sp, color = Palette.Violet) }
+                Partner.setMine(context, myName)
+            }.padding(horizontal = 14.dp, vertical = 10.dp)) { Strong("保存", size = 13.sp, color = Palette.Violet) }
+        }
+        val remote = Partner.remote
+        if (remote != null) {
+            Label("对方自己设的称呼是「$remote」，界面上都这么叫。", size = 12.sp, weight = FontWeight.Bold, color = Palette.Violet)
+        } else {
+            Label("对方还没设（或者还没同步），先用你给的称呼：", size = 12.sp, weight = FontWeight.Medium)
+            com.personal.carnet.ui.components.ChipRow(listOf("她" to "她", "他" to "他"), Partner.local.takeIf { it == "她" || it == "他" }) {
+                Partner.set(context, it)
+                custom = ""
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.personal.carnet.ui.components.GlassField(
+                    custom, { custom = it.take(Partner.MAX) },
+                    if (Partner.local != "她" && Partner.local != "他") "现在是「${Partner.local}」" else "或者自己起个称呼",
+                    Modifier.weight(1f),
+                )
+                Box(Modifier.glass(RoundedCornerShape(14.dp)).jelly {
+                    if (custom.isNotBlank()) { Partner.set(context, custom); custom = "" }
+                }.padding(horizontal = 14.dp, vertical = 10.dp)) { Strong("用这个", size = 13.sp, color = Palette.Violet) }
+            }
         }
     }
 }

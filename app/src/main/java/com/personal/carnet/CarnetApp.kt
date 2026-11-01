@@ -25,7 +25,11 @@ class CarnetApp : Application() {
 
     private val database by lazy { CarnetDatabase.open(this) }
 
-    val sync: BookSync by lazy { BookSync(database.dao(), appScope) }
+    val sync: BookSync by lazy {
+        BookSync(database.dao(), appScope).also { s ->
+            s.onPartnerName = { name -> com.personal.carnet.ui.Partner.setRemote(this, name) }
+        }
+    }
 
     val repository: Repository by lazy {
         Repository(database.dao(), Prefs(this)).also { repo ->
@@ -47,6 +51,12 @@ class CarnetApp : Application() {
         super.onCreate()
         com.personal.carnet.ui.Partner.load(this)
         com.personal.carnet.ui.CustomCategories.load(this)
+        // 自己的称呼改了就同步给对方
+        appScope.launch {
+            androidx.compose.runtime.snapshotFlow { com.personal.carnet.ui.Partner.mine }
+                .distinctUntilChanged()
+                .collect { sync.pushMyName(it) }
+        }
         sync.start()
         // 账一变，桌面小组件跟着刷新（显示的文字没变就不刷）
         appScope.launch {
