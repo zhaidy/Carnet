@@ -125,6 +125,16 @@ interface CarnetDao {
     @Query("DELETE FROM settlements WHERE ledgerId = :id")
     suspend fun deleteSettlementsIn(id: Long)
 
+    @Query("DELETE FROM entries WHERE ledgerId = :id")
+    suspend fun deleteEntriesIn(id: Long)
+
+    /** 停止同步 / 重新邀请：这些账要重新传到新的邀请码下面 */
+    @Query("UPDATE entries SET syncId = NULL WHERE ledgerId = :id")
+    suspend fun clearEntrySyncIds(id: Long)
+
+    @Query("UPDATE settlements SET syncId = NULL WHERE ledgerId = :id")
+    suspend fun clearSettlementSyncIds(id: Long)
+
     @Query("SELECT * FROM settlements WHERE ledgerId = :ledgerId")
     suspend fun settlementsInNow(ledgerId: Long): List<Settlement>
 

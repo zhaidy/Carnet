@@ -206,7 +206,9 @@ class MainViewModel(
 
     fun updateLedger(ledger: Ledger) = viewModelScope.launch { repo.updateLedger(ledger) }
 
-    suspend fun ledgerDeletable(id: Long): Boolean = repo.ledgerDeletable(id)
+    suspend fun ledgerDeleteBlock(id: Long): String? = repo.ledgerDeleteBlock(id)
+
+    suspend fun entriesInLedger(id: Long): Int = repo.entriesInLedger(id)
 
     suspend fun deleteLedger(id: Long): Boolean = repo.deleteLedger(id)
 
