@@ -171,8 +171,18 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
         onSettlementChanged?.invoke(s, dao.ledgersNow().firstOrNull { it.id == s.ledgerId }, true)
     }
 
-    suspend fun settle(ledgerId: Long, cents: Long) =
-        dao.insert(Settlement(ledgerId = ledgerId, timeMillis = System.currentTimeMillis(), cents = cents))
+    /**
+     * 两清。[accountId] 不是 null 时，把补的钱记到那个账户上：她补你就进账，你补她就出账。
+     * 记成一笔不算收支的转账（另一头是空的），净资产两清前后不变
+     */
+    suspend fun settle(ledgerId: Long, cents: Long, accountId: Long? = null, note: String = "两清") {
+        val now = System.currentTimeMillis()
+        dao.insert(Settlement(ledgerId = ledgerId, timeMillis = now, cents = cents))
+        val account = accountId?.let { id -> dao.accountsNow().firstOrNull { it.id == id } } ?: return
+        if (cents == 0L) return
+        val ledger = dao.ledgersNow().firstOrNull { it.id == ledgerId } ?: return
+        dao.insert(EntryFactory.settleMoney(account, cents, ledger.currency ?: com.personal.carnet.domain.MainCurrency, prefs.defaultRate.value, note, now))
+    }
 
     fun setDefaultRate(rate: FxRate) = prefs.setDefaultRate(rate)
 

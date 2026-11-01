@@ -40,6 +40,32 @@ object EntryFactory {
         )
     }
 
+    /**
+     * 两清时收到 / 补出去的钱：正数她补你（进 [account]），负数你补她（从 [account] 出）。
+     * 是一笔另一头为空的转账，不算收入也不算花销
+     */
+    fun settleMoney(account: Account, cents: Long, ledgerCurrency: Currency, rate: FxRate, note: String, timeMillis: Long): Entry {
+        val inAccount = rate.convert(kotlin.math.abs(cents), ledgerCurrency, account.currency)
+        val incoming = cents > 0
+        return Entry(
+            kind = EntryKind.TRANSFER,
+            timeMillis = timeMillis,
+            ledgerId = null,
+            category = SETTLE,
+            note = note,
+            amountCents = inAccount,
+            currency = account.currency,
+            accountId = if (incoming) null else account.id,
+            accountCents = if (incoming) 0 else inAccount,
+            ledgerCents = 0,
+            toAccountId = if (incoming) account.id else null,
+            toCents = if (incoming) inAccount else 0,
+            rate = if (ledgerCurrency != account.currency) rate.cnyPerSgd else null,
+        )
+    }
+
+    const val SETTLE = "settle"
+
     fun transfer(
         from: Account, to: Account, fromCents: Long, toCents: Long, rate: FxRate?, note: String,
         timeMillis: Long = System.currentTimeMillis(), category: String = "transfer",

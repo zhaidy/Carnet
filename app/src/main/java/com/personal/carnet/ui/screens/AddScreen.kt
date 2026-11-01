@@ -172,6 +172,20 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             }
         }
 
+        // 两清时记的收 / 付钱：不能在这里改，只能删
+        if (e != null && e.category == com.personal.carnet.data.EntryFactory.SETTLE) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Strong(e.note.ifBlank { "两清" })
+                        Label("这是两清时记下的钱的进出，不算收入也不算花销。金额不对的话，删掉这一笔，再到账本页撤销两清、重新两清。", size = 12.sp, weight = FontWeight.Medium)
+                    }
+                }
+                DeleteEntry(e, vm, onClose)
+            }
+            return@Column
+        }
+
         if (accounts.isEmpty() || personal == null) {
             Box(Modifier.padding(16.dp)) {
                 GlassCard {

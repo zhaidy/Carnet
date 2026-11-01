@@ -152,7 +152,13 @@ fun CarnetRoot(vm: MainViewModel, openRoute: kotlinx.coroutines.flow.StateFlow<S
                     }
                     composable(Routes.LEDGERS) {
                         LedgersScreen(
-                            snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { vm.settle(it.ledger.id, it.balanceCents) },
+                            snap, vm, onNewLedger = { nav.navigate(Routes.NEW_LEDGER) }, onSettle = { view, accountId ->
+                                val who = Partner.name
+                                vm.settle(
+                                    view.ledger.id, view.balanceCents, accountId,
+                                    (if (view.balanceCents > 0) "${who}补的钱" else "补给$who") + " · ${view.ledger.name}两清",
+                                )
+                            },
                             onEdit = { nav.navigate("ledger/edit/${it.ledger.id}") },
                             onOpenBills = { nav.navigate("bills/ledger/${it.ledger.id}") },
                         )

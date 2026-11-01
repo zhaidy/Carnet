@@ -66,7 +66,7 @@ import java.time.ZoneId
 
 @Composable
 fun LedgersScreen(
-    snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView) -> Unit,
+    snapshot: Snapshot, vm: MainViewModel, onNewLedger: () -> Unit, onSettle: (LedgerView, Long?) -> Unit,
     onEdit: (LedgerView) -> Unit = {}, onOpenBills: (LedgerView) -> Unit = {},
 ) {
     var confirming by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -145,8 +145,9 @@ fun LedgersScreen(
                 confirming = confirming == view.ledger.id,
                 onAskSettle = { confirming = view.ledger.id },
                 onCancel = { confirming = null },
-                onConfirm = {
-                    onSettle(view)
+                accounts = snapshot.accounts.map { it.account }.filter { it.type != com.personal.carnet.data.AccountType.CREDIT },
+                onConfirm = { accountId ->
+                    onSettle(view, accountId)
                     confirming = null
                     toast.show("「${view.ledger.name}」两清啦")
                 },
@@ -169,7 +170,8 @@ private fun LedgerCard(
     confirming: Boolean,
     onAskSettle: () -> Unit,
     onCancel: () -> Unit,
-    onConfirm: () -> Unit,
+    accounts: List<com.personal.carnet.data.Account>,
+    onConfirm: (Long?) -> Unit,
 ) {
     val l = view.ledger
     var settleOpen by rememberSaveable { mutableStateOf(false) }
@@ -295,9 +297,29 @@ private fun LedgerCard(
                 }
             }
             if (confirming) {
+                // 补的钱进 / 出哪个账户：默认第一个和账本同币种的储蓄卡、钱包；选「不记」就只两清
+                val c = view.currency
+                var moneyAccount by rememberSaveable(l.id) {
+                    mutableStateOf((accounts.firstOrNull { it.currency == c } ?: accounts.firstOrNull())?.id ?: -1L)
+                }
                 Label("补好了就点两清，这之前的账就不再算了。", size = 12.sp, weight = FontWeight.Medium)
+                if (view.balanceCents != 0L && accounts.isNotEmpty()) {
+                    com.personal.carnet.ui.components.ChipRow(
+                        accounts.map { it.id to (it.name + " " + it.currency.symbol) } + (-1L to "不记"),
+                        moneyAccount,
+                        if (view.balanceCents > 0) "进哪里" else "从哪付",
+                    ) { moneyAccount = it }
+                    Label(
+                        if (moneyAccount == -1L) "只两清，不动账户；钱的进出你自己另外记"
+                        else (if (view.balanceCents > 0) "${Partner.name}补的 " else "补给${Partner.name}的 ") +
+                            Money.format(kotlin.math.abs(view.balanceCents), c) +
+                            (if (view.balanceCents > 0) " 记进" else " 从") + "「" + (accounts.firstOrNull { it.id == moneyAccount }?.name ?: "") + "」" +
+                            (if (view.balanceCents > 0) "" else "扣") + "，不算收入也不算花销，净资产不变",
+                        size = 11.sp, weight = FontWeight.Medium,
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { CtaButton("补好了，两清", onClick = onConfirm) }
+                    Box(Modifier.weight(1f)) { CtaButton("补好了，两清", onClick = { onConfirm(moneyAccount.takeIf { it != -1L }) }) }
                     Box(
                         Modifier.weight(1f).glassControl(RoundedCornerShape(22.dp)).jelly(onClick = onCancel).padding(vertical = 18.dp),
                         contentAlignment = Alignment.Center,

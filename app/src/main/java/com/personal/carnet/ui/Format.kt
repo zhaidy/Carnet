@@ -2,6 +2,7 @@ package com.personal.carnet.ui
 
 import com.personal.carnet.data.Account
 import com.personal.carnet.data.Entry
+import com.personal.carnet.data.EntryFactory
 import com.personal.carnet.data.EntryKind
 import com.personal.carnet.data.Ledger
 import com.personal.carnet.data.Payer
@@ -34,6 +35,19 @@ data class EntryLine(val icon: String, val title: String, val meta: String, val 
 fun Entry.line(accounts: Map<Long, Account>, ledgers: Map<Long, Ledger>): EntryLine {
     val accountName = accountId?.let { accounts[it]?.name }
     return when (kind) {
+        EntryKind.TRANSFER if category == EntryFactory.SETTLE -> {
+            // 两清时收到 / 补出去的钱：另一头是空的
+            val incoming = toAccountId != null
+            val account = accounts[if (incoming) toAccountId else accountId]
+            EntryLine(
+                icon = Categories.TRANSFER_ICON,
+                title = note.ifBlank { "两清" },
+                meta = shortDate(timeMillis) + " · " + (account?.name ?: "?") + " · 两清，不算收支",
+                amount = (if (incoming) "+" else "-") + Money.format(if (incoming) toCents else accountCents, account?.currency ?: currency),
+                sub = null,
+                income = incoming,
+            )
+        }
         EntryKind.TRANSFER -> {
             val from = accounts[accountId]
             val to = accounts[toAccountId]
