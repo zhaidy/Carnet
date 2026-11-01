@@ -97,15 +97,23 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
     suspend fun updateLedger(ledger: Ledger) = dao.update(ledger)
 
     /** 账本里还有账、固定收支记到这里、或者是最后一个个人账本时删不了 */
-    suspend fun ledgerDeletable(id: Long): Boolean {
+    /** 删不了的原因；能删返回 null。里面有账也能删（连账一起删） */
+    suspend fun ledgerDeleteBlock(id: Long): String? {
         val ledgers = dao.ledgersNow()
-        val ledger = ledgers.firstOrNull { it.id == id } ?: return false
-        if (!ledger.shared && ledgers.count { !it.shared } <= 1) return false
-        return dao.entriesInLedger(id) == 0 && dao.rulesUsingLedger(id) == 0
+        val ledger = ledgers.firstOrNull { it.id == id } ?: return "找不到这个账本"
+        if (!ledger.shared && ledgers.count { !it.shared } <= 1) return "这是最后一个个人账本，收入都记在这里"
+        if (dao.rulesUsingLedger(id) > 0) return "有固定收支记到这个账本，先去「固定支出和工资」里改掉或删掉"
+        return null
     }
 
+    suspend fun entriesInLedger(id: Long): Int = dao.entriesInLedger(id)
+
+    /**
+     * 连同里面的账和两清记录一起删。只删这台手机上的：同步的账本不会在云端留删除标记，对方那边不受影响
+     */
     suspend fun deleteLedger(id: Long): Boolean {
-        if (!ledgerDeletable(id)) return false
+        if (ledgerDeleteBlock(id) != null) return false
+        dao.deleteEntriesIn(id)
         dao.deleteSettlementsIn(id)
         dao.deleteLedger(id)
         return true

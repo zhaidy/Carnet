@@ -80,9 +80,13 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    var deletable by rememberSaveable { mutableStateOf(false) }
+    var deleteBlock by rememberSaveable { mutableStateOf<String?>(null) }
+    var entryCount by rememberSaveable { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
-    if (old != null) LaunchedEffect(old.id) { deletable = vm.ledgerDeletable(old.id) }
+    if (old != null) LaunchedEffect(old.id) {
+        deleteBlock = vm.ledgerDeleteBlock(old.id)
+        entryCount = vm.entriesInLedger(old.id)
+    }
     val currencyLabel = currency?.label ?: "混币，按新币统计"
 
     fun applyPreset(p: Preset) {
@@ -223,17 +227,25 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
             Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                 GlassCard(padding = 14.dp) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (!deletable) {
+                        val block = deleteBlock
+                        if (block != null) {
                             Strong("这个账本删不了")
-                            Label("里面还有账，或者固定收支记到这里，或者这是最后一个个人账本。", size = 12.sp, weight = FontWeight.Medium)
+                            Label(block, size = 12.sp, weight = FontWeight.Medium)
                         } else {
-                            Strong("删掉「${old.name}」？")
+                            Strong(if (entryCount > 0) "删掉「${old.name}」和里面的 $entryCount 笔账？" else "删掉「${old.name}」？")
+                            if (entryCount > 0) {
+                                Label(
+                                    (if (old.syncCode != null) "只删这台手机上的，云端和${Partner.name}那边不受影响。" else "") +
+                                        "用自己账户付的账一起删掉，账户余额会跟着变。删了找不回来。",
+                                    size = 12.sp, weight = FontWeight.Medium,
+                                )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(
                                     Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
                                         scope.launch {
                                             if (vm.deleteLedger(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
-                                            else { deletable = false; toast.show("这个账本删不了") }
+                                            else { deleteBlock = vm.ledgerDeleteBlock(old.id); toast.show("这个账本删不了") }
                                         }
                                     }.padding(vertical = 12.dp),
                                     contentAlignment = Alignment.Center,

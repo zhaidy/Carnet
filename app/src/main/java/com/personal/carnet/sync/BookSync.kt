@@ -87,6 +87,9 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
         val uid = signIn()
         val code = SyncCodes.generate(SecureRandom())
         remote { book(code).set(bookMeta(ledger, uid) + mapOf("members" to listOf(uid), "createdAt" to FieldValue.serverTimestamp())).await() }
+        // 以前同步过（停止后重新邀请）的账，标记是旧邀请码下的：清掉，全部重新传到新的下面
+        dao.clearEntrySyncIds(ledger.id)
+        dao.clearSettlementSyncIds(ledger.id)
         dao.update(ledger.copy(syncCode = code))
         return code
     }
@@ -118,6 +121,8 @@ class BookSync(private val dao: CarnetDao, private val scope: CoroutineScope) {
     /** 不再同步：本机的账都留着 */
     suspend fun leave(ledger: Ledger) {
         dao.update(ledger.copy(syncCode = null))
+        dao.clearEntrySyncIds(ledger.id)
+        dao.clearSettlementSyncIds(ledger.id)
         _status.update { it - ledger.id }
     }
 
