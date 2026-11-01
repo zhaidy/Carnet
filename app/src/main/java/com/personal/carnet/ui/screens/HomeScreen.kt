@@ -231,6 +231,12 @@ private fun ForecastCard(f: com.personal.carnet.domain.Forecast) {
                 size = 12.sp, weight = FontWeight.Medium,
             )
         }
+        f.lowest?.let { low ->
+            Label(
+                "最少的时候：${low.date.monthValue}/${low.date.dayOfMonth} " + forecastLabel(low) + " 后剩 " + Money.format(low.balance, MainCurrency),
+                size = 12.sp, weight = FontWeight.Bold, color = if (low.balance < 0) Palette.Rose else Palette.Ink,
+            )
+        }
         if (open) {
             Row {
                 Label("现在能用", size = 12.sp, modifier = Modifier.weight(1f))

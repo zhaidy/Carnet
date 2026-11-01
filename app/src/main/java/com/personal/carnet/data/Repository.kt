@@ -203,7 +203,35 @@ class Repository(private val dao: CarnetDao, private val prefs: Prefs) {
     /** 到日子的自动规则记上账；打开应用、回到前台时调用 */
     suspend fun processDue(today: LocalDate = LocalDate.now()) = dueLock.withLock {
         val rules = dao.rulesNow().filter { it.active && it.auto }
-        if (rules.isEmpty()) return@withLock
+        if (rules.isNotEmpty()) processRules(rules, today)
+        // 固定收支记完再自动两清（比如 20 号的房租先记上，26 号结的时候才算得进去）
+        autoSettle(today)
+    }
+
+    /**
+     * 开了自动两清的共用账本：从打开开关那天、上一次两清之后起，每个到了的结算日结一次，
+     * 补的钱记进选的账户。今天的结算用现在的时间，今天晚点再记的账算下一期
+     */
+    private suspend fun autoSettle(today: LocalDate) {
+        val zone = ZoneId.systemDefault()
+        for (l in dao.ledgersNow().filter { it.shared && it.autoSettleAccountId != null }) {
+            val account = dao.accountsNow().firstOrNull { it.id == l.autoSettleAccountId } ?: continue
+            val settlements = dao.settlementsInNow(l.id)
+            val lastDay = settlements.maxOfOrNull { it.timeMillis }?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+            val from = LocalDate.ofEpochDay(l.autoSettleFromEpochDay ?: today.toEpochDay()).minusDays(1)
+            val after = if (lastDay != null && lastDay.isAfter(from)) lastDay else from
+            for (d in com.personal.carnet.domain.Forecasts.settleDatesBetween(l, after, today)) {
+                val time = if (d == today) System.currentTimeMillis() else d.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                val previous = dao.settlementsInNow(l.id).filter { it.timeMillis < time }.maxOfOrNull { it.timeMillis } ?: Long.MIN_VALUE
+                val cents = Books.balanceBetween(l, dao.entriesNow(), previous, time)
+                if (cents == 0L) continue
+                dao.insert(Settlement(ledgerId = l.id, timeMillis = time, cents = cents))
+                dao.insert(EntryFactory.settleMoney(account, cents, l.currency ?: com.personal.carnet.domain.MainCurrency, prefs.defaultRate.value, "「${l.name}」自动两清", time))
+            }
+        }
+    }
+
+    private suspend fun processRules(rules: List<RecurringRule>, today: LocalDate) {
         val ctx = context()
         for (rule in rules) {
             val dates = Schedule.occurrences(rule, LocalDate.ofEpochDay(rule.lastDoneEpochDay), today)

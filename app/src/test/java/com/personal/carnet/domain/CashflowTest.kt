@@ -227,4 +227,30 @@ class CashflowTest {
         // 现在她欠的 25.29 + 房租里她那份 1200
         assertEquals(2529L + 120000L, settle.cents)
     }
+
+    @Test
+    fun 自动两清的结算日() {
+        val monthly26 = us.copy(settleMode = com.personal.carnet.data.SettleMode.MONTHLY, settleDay = 26)
+        assertEquals(
+            listOf(LocalDate.of(2026, 10, 26), LocalDate.of(2026, 11, 26)),
+            Forecasts.settleDatesBetween(monthly26, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 12, 1)),
+        )
+        // after 那天不算，through 那天算
+        assertEquals(listOf(LocalDate.of(2026, 11, 26)), Forecasts.settleDatesBetween(monthly26, LocalDate.of(2026, 10, 26), LocalDate.of(2026, 11, 26)))
+        // 月底结：小月按最后一天
+        val monthEnd = us.copy(settleMode = com.personal.carnet.data.SettleMode.MONTHLY, settleDay = 31)
+        assertEquals(listOf(LocalDate.of(2026, 11, 30)), Forecasts.settleDatesBetween(monthEnd, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 12, 1)))
+        // 想结就结的没有
+        assertEquals(emptyList<LocalDate>(), Forecasts.settleDatesBetween(us.copy(settleMode = com.personal.carnet.data.SettleMode.MANUAL), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)))
+    }
+
+    @Test
+    fun 还款预测里钱最少的时候() {
+        val accts = listOf(bank, cardA.copy(dueDay = 13), icbc)
+        val plan = Cashflow.plan(listOf(salary, rent), accts, balances, listOf(us), rate, today)
+        val f = Forecasts.build(plan, accts, balances, emptyList(), rate, today, emptyList())
+        // 11/13 还卡、11/20 房租之后最少，11/26 工资又多起来
+        assertEquals("房租", f.lowest?.name)
+        assertEquals(842050L - 110230L - 180000L, f.lowest?.balance)
+    }
 }

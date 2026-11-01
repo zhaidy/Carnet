@@ -56,6 +56,10 @@ data class Ledger(
     val syncCode: String? = null,
     /** 共用账本里每一笔默认对方出固定多少（账本货币），比如房租；null 是按比例。只在本机，不同步 */
     val herFixedCents: Long? = null,
+    /** 到结算日自动两清，补的钱记进这个账户；null 是手动两清。只在本机 */
+    val autoSettleAccountId: Long? = null,
+    /** 从哪天开始自动两清（打开开关那天），之前的结算日不补 */
+    val autoSettleFromEpochDay: Long? = null,
 )
 
 enum class EntryKind { EXPENSE, INCOME, TRANSFER }
