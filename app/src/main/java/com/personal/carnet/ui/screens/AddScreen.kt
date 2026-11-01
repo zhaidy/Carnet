@@ -114,7 +114,6 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var note by rememberSaveable { mutableStateOf(e?.note ?: "") }
     var day by rememberSaveable { mutableLongStateOf(e?.let { EntrySearch.dateOf(it).toEpochDay() } ?: LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var sentence by rememberSaveable { mutableStateOf("") }
     var thinking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -149,7 +148,6 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             RoundGlassButton(IconPaths.CLOSE, "关闭", onClick = onClose)
             if (e != null) {
                 Text("改这一笔", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                RoundGlassButton(IconPaths.TRASH, "删掉这一笔") { confirmDelete = !confirmDelete }
             } else {
             Spacer(Modifier.weight(1f))
             Row(Modifier.glassControl().padding(4.dp)) {
@@ -171,34 +169,6 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             }
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.width(44.dp))
-            }
-        }
-
-        if (e != null && confirmDelete) {
-            Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                GlassCard(padding = 14.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Strong("删掉这一笔？")
-                        Label(
-                            if (e.syncId != null) "${Partner.name}那边也会一起删掉。" else "删掉后账户余额会跟着变回去。",
-                            size = 12.sp, weight = FontWeight.Medium,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(
-                                Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
-                                    vm.deleteEntry(e.id)
-                                    toast.show("已删掉这一笔")
-                                    onClose()
-                                }.padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
-                            Box(
-                                Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Strong("算了", size = 14.sp) }
-                        }
-                    }
-                }
             }
         }
 
@@ -379,6 +349,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     GlassField(note, { note = it }, "写点什么，可以不写", Modifier.weight(1f))
                 }
                 CategoryGrid(cats.map { Triple(it.key, it.label, it.icon) }, cat.key) { category = it }
+                if (e != null) DeleteEntry(e, vm, onClose)
             }
             Keypad(
                 onKey = { k -> amount = typeKey(amount, k) },
@@ -455,6 +426,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     Label("备注", modifier = Modifier.width(56.dp))
                     GlassField(note, { note = it }, "比如 汇款回国", Modifier.weight(1f))
                 }
+                if (e != null) DeleteEntry(e, vm, onClose)
             }
             Box(Modifier.padding(16.dp).navigationBarsPadding()) {
                 CtaButton(if (e != null) "保存" else "记下转账") {
@@ -472,6 +444,24 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     }
                 }
             }
+        }
+    }
+}
+
+/** 删掉这一笔：放在改账页最底下的「更多操作」里 */
+@Composable
+private fun DeleteEntry(e: Entry, vm: MainViewModel, onClose: () -> Unit) {
+    val toast = LocalToast.current
+    com.personal.carnet.ui.components.DangerZone {
+        com.personal.carnet.ui.components.DangerAction(
+            title = "删掉这一笔",
+            question = "删掉这一笔？",
+            detail = if (e.syncId != null) "${Partner.name}那边也会一起删掉。" else "删掉后账户余额会跟着变回去。",
+            confirmText = "删掉",
+        ) {
+            vm.deleteEntry(e.id)
+            toast.show("已删掉这一笔")
+            onClose()
         }
     }
 }

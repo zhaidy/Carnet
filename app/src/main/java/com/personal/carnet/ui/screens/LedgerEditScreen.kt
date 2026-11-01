@@ -79,7 +79,6 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     var day by rememberSaveable { mutableIntStateOf(old?.settleDay ?: 31) }
     var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var deleteBlock by rememberSaveable { mutableStateOf<String?>(null) }
     var entryCount by rememberSaveable { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
@@ -219,54 +218,42 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                     }
                 }
             }
-        }
-        if (old?.syncCode != null) {
-            Label("在和${Partner.name}同步：这里改的只改你这边，${Partner.name}那边要${Partner.name}自己改。", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 20.dp))
-        }
-        if (old != null && confirmDelete) {
-            Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                GlassCard(padding = 14.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val block = deleteBlock
-                        if (block != null) {
-                            Strong("这个账本删不了")
-                            Label(block, size = 12.sp, weight = FontWeight.Medium)
-                        } else {
-                            Strong(if (entryCount > 0) "删掉「${old.name}」和里面的 $entryCount 笔账？" else "删掉「${old.name}」？")
-                            if (entryCount > 0) {
-                                Label(
-                                    (if (old.syncCode != null) "只删这台手机上的，云端和${Partner.name}那边不受影响。" else "") +
-                                        "用自己账户付的账一起删掉，账户余额会跟着变。删了找不回来。",
-                                    size = 12.sp, weight = FontWeight.Medium,
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(
-                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly {
-                                        scope.launch {
-                                            if (vm.deleteLedger(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
-                                            else { deleteBlock = vm.ledgerDeleteBlock(old.id); toast.show("这个账本删不了") }
-                                        }
-                                    }.padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) { Strong("删掉", size = 14.sp, color = Palette.Rose) }
-                                Box(
-                                    Modifier.weight(1f).glassControl(RoundedCornerShape(18.dp)).jelly { confirmDelete = false }.padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) { Strong("算了", size = 14.sp) }
-                            }
+            if (old != null) {
+                com.personal.carnet.ui.components.DangerZone {
+                    if (old.syncCode != null) {
+                        com.personal.carnet.ui.components.DangerAction(
+                            title = "停止和${Partner.name}同步",
+                            question = "停止同步「${old.name}」？",
+                            detail = "这台手机上的账都留着，以后可以重新邀请。停止后${Partner.name}那边记的新账就不会过来了。",
+                            confirmText = "停止同步",
+                        ) {
+                            vm.leaveSync(old)
+                            toast.show("停止同步了")
+                            onDone()
+                        }
+                    }
+                    com.personal.carnet.ui.components.DangerAction(
+                        title = "删除这个账本",
+                        question = if (entryCount > 0) "删掉「${old.name}」和里面的 $entryCount 笔账？" else "删掉「${old.name}」？",
+                        detail = if (entryCount > 0) {
+                            (if (old.syncCode != null) "只删这台手机上的，云端和${Partner.name}那边不受影响。" else "") +
+                                "用自己账户付的账一起删掉，账户余额会跟着变。删了找不回来。"
+                        } else null,
+                        confirmText = "删掉",
+                        blocked = deleteBlock,
+                    ) {
+                        scope.launch {
+                            if (vm.deleteLedger(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
+                            else { deleteBlock = vm.ledgerDeleteBlock(old.id); toast.show("这个账本删不了") }
                         }
                     }
                 }
             }
         }
+        if (old?.syncCode != null) {
+            Label("在和${Partner.name}同步：这里改的只改你这边，${Partner.name}那边要${Partner.name}自己改。", size = 12.sp, weight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 20.dp))
+        }
         Row(Modifier.padding(16.dp).navigationBarsPadding(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (old != null) {
-                Box(
-                    Modifier.glassControl(RoundedCornerShape(22.dp)).jelly { confirmDelete = !confirmDelete }.padding(horizontal = 18.dp, vertical = 18.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Strong("删除", size = 15.sp, color = Palette.Rose) }
-            }
             CtaButton(if (old != null) "保存" else "建好账本", Modifier.weight(1f)) {
                 if (name.isBlank()) {
                     toast.show("先给账本起个名字")

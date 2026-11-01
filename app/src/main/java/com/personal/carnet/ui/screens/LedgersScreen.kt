@@ -131,7 +131,6 @@ fun LedgersScreen(
                         }
                     }
                 },
-                onLeave = { vm.leaveSync(view.ledger) },
                 onEdit = { onEdit(view) },
                 onOpenBills = { onOpenBills(view) },
                 onMoveSettlement = { date ->
@@ -163,7 +162,6 @@ private fun LedgerCard(
     syncAvailable: Boolean,
     syncStatus: SyncStatus?,
     onInvite: () -> Unit,
-    onLeave: () -> Unit,
     onEdit: () -> Unit,
     onOpenBills: () -> Unit,
     onMoveSettlement: (LocalDate) -> Unit,
@@ -293,10 +291,6 @@ private fun LedgerCard(
                 if (syncCode == null && syncAvailable) {
                     Box(Modifier.glassControl().jelly(onClick = onInvite).padding(horizontal = 14.dp, vertical = 9.dp)) {
                         Strong("邀请${Partner.name}", size = 13.sp, color = Palette.Violet)
-                    }
-                } else if (syncCode != null) {
-                    Box(Modifier.glassControl().jelly(onClick = onLeave).padding(horizontal = 12.dp, vertical = 9.dp)) {
-                        Strong("停止同步", size = 12.sp, color = Palette.Muted)
                     }
                 }
             }
