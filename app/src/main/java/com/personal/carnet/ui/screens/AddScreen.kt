@@ -1,5 +1,7 @@
 package com.personal.carnet.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
+import com.personal.carnet.ui.CustomCategories
 import com.personal.carnet.ui.Partner
 
 import androidx.compose.foundation.layout.Arrangement
@@ -114,6 +116,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var note by rememberSaveable { mutableStateOf(e?.note ?: "") }
     // 共用账本：按账本比例分，还是对方出固定金额（按账本货币）
     var fixedSplit by rememberSaveable { mutableStateOf(spending?.herCents != null) }
+    var addingCategory by rememberSaveable { mutableStateOf(false) }
     var herText by rememberSaveable { mutableStateOf(spending?.herCents?.let { plain(it) } ?: "") }
     var day by rememberSaveable { mutableLongStateOf(e?.let { EntrySearch.dateOf(it).toEpochDay() } ?: LocalDate.now().toEpochDay()) }
     var picking by rememberSaveable { mutableStateOf(false) }
@@ -211,7 +214,10 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
             val ledgerCurrency = ledger.currency ?: MainCurrency
             val rate = FxRate.parse(rateText) ?: defaultRate
             val cents = Money.fromInput(amount)
-            val cats = if (isIncome) Categories.income else Categories.expense
+            val cats = (if (isIncome) Categories.income + CustomCategories.income() else Categories.expense + CustomCategories.expense()).let { list ->
+                // 这一笔用的自定义分类已经从列表里删了，也照样显示出来
+                if (list.none { it.key == category } && Categories.isCustom(category)) list + Categories.of(category) else list
+            }
             val cat = cats.firstOrNull { it.key == category } ?: cats.first()
 
             val fx = buildList {
@@ -385,7 +391,13 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     Label("备注", modifier = Modifier.width(56.dp))
                     GlassField(note, { note = it }, "写点什么，可以不写", Modifier.weight(1f))
                 }
-                CategoryGrid(cats.map { Triple(it.key, it.label, it.icon) }, cat.key) { category = it }
+                CategoryGrid(cats.map { Triple(it.key, it.label, it.icon) }, cat.key, onAdd = { addingCategory = !addingCategory }) { category = it }
+                if (addingCategory) {
+                    NewCategory(isIncome) { key ->
+                        category = key
+                        addingCategory = false
+                    }
+                }
                 if (e != null) DeleteEntry(e, vm, onClose)
             }
             Keypad(
@@ -531,6 +543,8 @@ private fun DateRow(date: LocalDate, onPick: () -> Unit) {
     }
 }
 
+private const val ADD_KEY = "__add__"
+
 private fun typeKey(current: String, key: String): String {
     if (key == ".") return if (current.contains('.')) current else current.ifEmpty { "0" } + "."
     val parts = current.split('.')
@@ -548,15 +562,51 @@ private fun AmountLine(label: String, currency: Currency, value: String, placeho
     }
 }
 
+/** 加一个自定义分类：起名字、挑图标 */
 @Composable
-fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, onSelect: (String) -> Unit) {
+fun NewCategory(income: Boolean, onAdded: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val toast = LocalToast.current
+    var name by rememberSaveable { mutableStateOf("") }
+    var icon by rememberSaveable { mutableStateOf("star") }
+    GlassCard(padding = 14.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Strong(if (income) "加一个收入分类" else "加一个支出分类", size = 14.sp)
+            GlassField(name, { name = it.take(6) }, "名字，比如 宠物", Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Categories.customIcons.forEach { (id, path) ->
+                    val on = id == icon
+                    Box(
+                        Modifier.size(42.dp)
+                            .then(if (on) Modifier.tinted(RoundedCornerShape(14.dp), Palette.Cta) else Modifier.glassControl(RoundedCornerShape(14.dp)))
+                            .semantics { this.selected = on; role = Role.RadioButton }
+                            .jelly { icon = id },
+                        contentAlignment = Alignment.Center,
+                    ) { LineIcon(path, if (on) Color.White else Palette.Ink, size = 19.dp) }
+                }
+            }
+            CtaButton("添加") {
+                if (name.isBlank()) { toast.show("先起个名字"); return@CtaButton }
+                if (name.contains(":")) { toast.show("名字里不能有冒号"); return@CtaButton }
+                onAdded(CustomCategories.add(context, name, icon, income))
+                toast.show("加好了「${name.trim()}」，在「我的」里可以删")
+                name = ""
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, onAdd: (() -> Unit)? = null, onSelect: (String) -> Unit) {
+    val all = if (onAdd != null) items + Triple(ADD_KEY, "添加", IconPaths.PLUS) else items
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.chunked(4).forEach { row ->
+        all.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
                 row.forEach { (key, label, icon) ->
                     val on = key == selected
                     Column(
-                        Modifier.weight(1f).semantics { this.selected = on; role = Role.RadioButton }.jelly { onSelect(key) }.padding(vertical = 4.dp),
+                        Modifier.weight(1f).semantics { this.selected = on; role = Role.RadioButton }
+                            .jelly { if (key == ADD_KEY) onAdd?.invoke() else onSelect(key) }.padding(vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {

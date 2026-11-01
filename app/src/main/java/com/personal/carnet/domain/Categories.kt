@@ -30,5 +30,37 @@ object Categories {
 
     private val all = (expense + income).associateBy { it.key }
 
-    fun of(key: String): Category = all[key] ?: expense.last()
+    /** 自定义分类能选的图标 */
+    val customIcons: Map<String, String> = linkedMapOf(
+        "star" to "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z",
+        "pet" to "M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM16 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 13c-3 0-5 3-5 5s2 2 5 2 5 0 5-2-2-5-5-5z",
+        "health" to "M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z",
+        "clothes" to "M8 4l-5 3 2 4 3-1v10h8V10l3 1 2-4-5-3c-1 2-2 2-4 2s-3 0-4-2z",
+        "travel" to "M3 13l18-7-7 18-2-8z",
+        "study" to "M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11",
+        "sport" to "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
+        "gift" to "M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0",
+        "heart" to "M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z",
+        "beauty" to "M12 3c.6 5 2.5 6.9 7.5 7.5-5 .6-6.9 2.5-7.5 7.5-.6-5-2.5-6.9-7.5-7.5 5-.6 6.9-2.5 7.5-7.5z",
+        "tag" to "M3 12V4h8l10 10-8 8zM7.5 7.5h.01",
+        "cart" to "M3 4h2l2.5 11h11L21 7H6.5M9 20h.01M17 20h.01",
+    )
+
+    /**
+     * 自定义分类的 key 里带着图标和名字：c:图标:名字（支出）、ci:图标:名字（收入）。
+     * 这样同步到对方手机上也认得，删掉了以前的账照样能显示
+     */
+    fun customKey(name: String, icon: String, income: Boolean): String =
+        (if (income) "ci:" else "c:") + icon + ":" + name.trim().replace("\n", " ")
+
+    fun isCustom(key: String) = key.startsWith("c:") || key.startsWith("ci:")
+
+    private fun parseCustom(key: String): Category? {
+        if (!isCustom(key)) return null
+        val parts = key.split(":", limit = 3)
+        if (parts.size < 3 || parts[2].isBlank()) return null
+        return Category(key, parts[2], customIcons[parts[1]] ?: customIcons.getValue("star"), income = parts[0] == "ci")
+    }
+
+    fun of(key: String): Category = all[key] ?: parseCustom(key) ?: expense.last()
 }

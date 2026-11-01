@@ -46,6 +46,7 @@ class CarnetApp : Application() {
     override fun onCreate() {
         super.onCreate()
         com.personal.carnet.ui.Partner.load(this)
+        com.personal.carnet.ui.CustomCategories.load(this)
         sync.start()
         // 账一变，桌面小组件跟着刷新（显示的文字没变就不刷）
         appScope.launch {

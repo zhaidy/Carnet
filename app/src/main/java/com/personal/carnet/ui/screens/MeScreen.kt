@@ -69,7 +69,32 @@ fun MeScreen(
         item { MenuRow(IconPaths.IMPORT, "导入随手记", "选随手记导出的 Excel 或 CSV", onOpenImport) }
         item { MenuRow(IconPaths.SWAP, "默认汇率", "1 S$ = ¥" + FxRate.format(snapshot.rate.cnyPerSgd) + " · 在账户页改", onOpenAccounts) }
         item { PartnerCard() }
+        item { CustomCategoryCard() }
         item { UpdateCard(update, currentBuild, onCheckUpdate, onInstall) }
+    }
+}
+
+/** 自己加的分类：在记账页分类最后的「添加」里加，在这里删 */
+@Composable
+private fun CustomCategoryCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val list = com.personal.carnet.ui.CustomCategories.all()
+    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Strong("自己加的分类")
+        if (list.isEmpty()) {
+            Label("记账时在分类最后点「添加」，起个名字、挑个图标就行。", size = 12.sp, weight = FontWeight.Medium)
+        } else {
+            Label("点 ✕ 删掉；已经记过的账不受影响。", size = 12.sp, weight = FontWeight.Medium)
+            list.forEach { c ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LineIcon(c.icon, Palette.Ink, size = 18.dp)
+                    Strong(c.label + if (c.income) " · 收入" else "", size = 14.sp, modifier = Modifier.weight(1f))
+                    Box(Modifier.jelly { com.personal.carnet.ui.CustomCategories.remove(context, c.key) }.padding(8.dp)) {
+                        LineIcon(IconPaths.CLOSE, Palette.Rose, size = 14.dp)
+                    }
+                }
+            }
+        }
     }
 }
 
