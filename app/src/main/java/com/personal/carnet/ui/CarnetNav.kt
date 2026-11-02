@@ -347,20 +347,20 @@ private fun TabBar(haze: HazeState, current: String?, onTab: (String) -> Unit, o
                             Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .semantics { selected = on; role = Role.Tab }
-                                .jelly { onTab(tab.route) },
+                                .semantics { selected = on }
+                                .jelly(role = Role.Tab) { onTab(tab.route) },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
                             LineIcon(tab.icon, color, size = 21.dp, width = if (on) 2.1f else 1.9f)
-                            Text(tab.label, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = color)
+                            Text(tab.label, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, color = color)
                         }
                     }
                 }
             }
             Box(
                 Modifier.size(64.dp).clip(CircleShape).hazeBlur(HazeInput.Sources(haze), BarBlur).tinted(CircleShape, Palette.Cta)
-                    .semantics { contentDescription = "记一笔"; role = Role.Button }.jelly(onClick = onAdd),
+                    .semantics { contentDescription = "记一笔" }.jelly(onClick = onAdd),
                 contentAlignment = Alignment.Center,
             ) {
                 // 水珠的高光：左上一小片

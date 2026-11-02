@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,7 +94,7 @@ private fun CustomCategoryCard() {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     LineIcon(c.icon, Palette.Ink, size = 18.dp)
                     Strong(c.label + if (c.income) " · 收入" else "", size = 14.sp, modifier = Modifier.weight(1f))
-                    Box(Modifier.jelly { com.personal.carnet.ui.CustomCategories.remove(context, c.key) }.padding(8.dp)) {
+                    Box(Modifier.size(44.dp).semantics { contentDescription = "删掉「${c.label}」" }.jelly { com.personal.carnet.ui.CustomCategories.remove(context, c.key) }, contentAlignment = Alignment.Center) {
                         LineIcon(IconPaths.CLOSE, Palette.Rose, size = 14.dp)
                     }
                 }

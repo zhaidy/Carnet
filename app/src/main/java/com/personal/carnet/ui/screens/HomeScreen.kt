@@ -56,6 +56,7 @@ import com.personal.carnet.ui.components.ChipRow
 import com.personal.carnet.ui.components.CtaButton
 import com.personal.carnet.ui.components.GlassCard
 import com.personal.carnet.ui.components.Label
+import com.personal.carnet.ui.components.LinkButton
 import com.personal.carnet.ui.components.LocalToast
 import com.personal.carnet.ui.components.Strong
 import com.personal.carnet.ui.glass.Palette
@@ -185,7 +186,7 @@ fun HomeScreen(
                 Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(26.dp)).padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Strong("接下来", modifier = Modifier.weight(1f))
-                        Box(Modifier.jelly(onClick = onOpenRecurring).padding(6.dp)) { Strong("全部", size = 13.sp, color = Palette.Violet) }
+                        LinkButton("全部", onClick = onOpenRecurring)
                     }
                     plan.upcoming.take(5).forEach { occ -> UpcomingRow(occ) }
                 }
@@ -200,7 +201,7 @@ fun HomeScreen(
         item {
             Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Strong("最近", modifier = Modifier.weight(1f))
-                Box(Modifier.jelly(onClick = onOpenBills).padding(6.dp)) { Strong("全部账单", size = 13.sp, color = Palette.Violet) }
+                LinkButton("全部账单", onClick = onOpenBills)
             }
         }
         if (entries.isEmpty()) {
@@ -304,7 +305,7 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
             VesselRow("国内账户", Money.format(snapshot.cnyCashCents, Currency.CNY), "≈ " + Money.format(snapshot.cnyCashInMainCents, MainCurrency), onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Cny.last())
             if (spendable != null && payday != null) {
                 val days = ChronoUnit.DAYS.between(LocalDate.now(), payday)
-                VesselRow("发薪前还能花", Money.format(spendable, MainCurrency), "还有 $days 天发薪", onOpenRecurring, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
+                VesselRow("发薪前还能花", Money.format(spendable, MainCurrency), when { days <= 0 -> "今天发薪"; days == 1L -> "明天发薪"; else -> "还有 $days 天发薪" }, onOpenRecurring, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
             } else {
                 VesselRow("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), "设好工资，杯子就按工资算满", onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
             }
