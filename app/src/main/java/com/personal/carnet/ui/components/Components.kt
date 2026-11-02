@@ -51,6 +51,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -105,15 +107,15 @@ fun GlassChip(text: String, selected: Boolean, modifier: Modifier = Modifier, on
             .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
             .heightIn(min = 40.dp)
             .then(if (selected) Modifier.tinted() else Modifier.glassControl())
-            .semantics { this.selected = selected; role = Role.RadioButton }
-            .jelly(onClick = onClick)
+            .semantics { this.selected = selected }
+            .jelly(role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text,
             fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.SemiBold,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             color = if (selected) Color.White else Palette.Ink,
         )
     }
@@ -165,7 +167,7 @@ fun RoundGlassButton(icon: String, description: String, size: Dp = 44.dp, onClic
         Modifier
             .size(size)
             .glassControl(CircleShape)
-            .semantics { contentDescription = description; role = Role.Button }
+            .semantics { contentDescription = description }
             .jelly(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -179,7 +181,6 @@ fun PillButton(text: String, icon: String? = null, onClick: () -> Unit) {
         Modifier
             .heightIn(min = 44.dp)
             .glassControl()
-            .semantics { role = Role.Button }
             .jelly(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -188,6 +189,15 @@ fun PillButton(text: String, icon: String? = null, onClick: () -> Unit) {
         if (icon != null) LineIcon(icon, Palette.Ink, size = 16.dp, width = 2.2f)
         Strong(text, size = 14.sp)
     }
+}
+
+/** 标题行右边的「全部」这类文字链接：字小，但能点的地方有 48dp 高 */
+@Composable
+fun LinkButton(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier.heightIn(min = 48.dp).jelly(onClick = onClick).padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) { Strong(text, size = 13.sp, color = Palette.Violet) }
 }
 
 /** 玻璃开关，圆钮带弹簧 */
@@ -200,8 +210,8 @@ fun GlassSwitch(checked: Boolean, description: String, onChange: (Boolean) -> Un
             .height(32.dp)
             .clip(RoundedCornerShape(16.dp))
             .then(if (checked) Modifier.background(Palette.Cta) else Modifier.background(Color.White.copy(alpha = 0.5f)))
-            .semantics { role = Role.Switch; contentDescription = description; selected = checked }
-            .jelly { onChange(!checked) }
+            .semantics { contentDescription = description; toggleableState = ToggleableState(checked) }
+            .jelly(role = Role.Switch) { onChange(!checked) }
             .padding(3.dp),
     ) {
         Box(
@@ -227,7 +237,7 @@ fun Stepper(value: String, description: String, onMinus: () -> Unit, onPlus: () 
 @Composable
 private fun StepButton(text: String, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(36.dp).glassControl(CircleShape).semantics { contentDescription = description; role = Role.Button }.jelly(onClick = onClick),
+        Modifier.size(44.dp).glassControl(CircleShape).semantics { contentDescription = description }.jelly(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Strong(text, size = 18.sp) }
 }
@@ -372,7 +382,8 @@ fun DangerZone(content: @Composable () -> Unit) {
     var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
-            Modifier.align(Alignment.CenterHorizontally).semantics { role = Role.Button }.jelly { open = !open }.padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp).jelly { open = !open }.padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center,
         ) { Label(if (open) "收起" else "更多操作", size = 13.sp, weight = FontWeight.SemiBold) }
         if (open) content()
     }
@@ -391,7 +402,7 @@ fun DangerAction(
     var asking by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(false) }
     GlassCard(padding = 14.dp) {
         if (!asking) {
-            Box(Modifier.fillMaxWidth().semantics { role = Role.Button }.jelly { asking = true }.padding(vertical = 4.dp)) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 40.dp).jelly { asking = true }, contentAlignment = Alignment.CenterStart) {
                 Strong(title, size = 14.sp, color = Palette.Rose)
             }
         } else {

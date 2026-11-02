@@ -167,13 +167,13 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                             .heightIn(min = 38.dp)
                             .width(64.dp)
                             .then(if (on) Modifier.glassControl() else Modifier)
-                            .semantics { selected = on; role = Role.Tab }
-                            .jelly {
+                            .semantics { selected = on }
+                            .jelly(role = Role.Tab) {
                                 mode = m
                                 category = if (m == Mode.INCOME) "salary" else "food"
                             },
                         contentAlignment = Alignment.Center,
-                    ) { Text(m.label, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted) }
+                    ) { Text(m.label, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, color = if (on) Palette.Ink else Palette.Muted) }
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -329,7 +329,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                             }
                             Row(
                                 Modifier.glassControl(RoundedCornerShape(12.dp))
-                                    .semantics { contentDescription = "切换币种，现在是${spend.label}"; role = Role.Button }
+                                    .semantics { contentDescription = "切换币种，现在是${spend.label}"}
                                     .jelly { spend = if (spend == Currency.CNY) Currency.SGD else Currency.CNY }
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -366,7 +366,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Label("这一笔用 1 S$ = ¥", size = 12.sp)
                                     GlassField(rateText, { rateText = it.filter { c -> c.isDigit() || c == '.' } }, FxRate.format(defaultRate.cnyPerSgd), Modifier.weight(1f), decimal = true)
-                                    Box(Modifier.glassControl(RoundedCornerShape(12.dp)).jelly { rateText = ""; rateOpen = false }.padding(10.dp)) {
+                                    Box(Modifier.heightIn(min = 42.dp).glassControl(RoundedCornerShape(12.dp)).jelly { rateText = ""; rateOpen = false }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                                         Strong("用默认", size = 12.sp)
                                     }
                                 }
@@ -554,7 +554,7 @@ private fun DateRow(date: LocalDate, onPick: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Label("日期", modifier = Modifier.width(56.dp))
         Row(
-            Modifier.glassControl(RoundedCornerShape(14.dp)).semantics { role = Role.Button }.jelly(onClick = onPick).padding(horizontal = 12.dp, vertical = 9.dp),
+            Modifier.glassControl(RoundedCornerShape(14.dp)).jelly(onClick = onPick).padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -600,8 +600,8 @@ fun NewCategory(income: Boolean, onAdded: (String) -> Unit) {
                     Box(
                         Modifier.size(42.dp)
                             .then(if (on) Modifier.tinted(RoundedCornerShape(14.dp), Palette.Cta) else Modifier.glassControl(RoundedCornerShape(14.dp)))
-                            .semantics { this.selected = on; role = Role.RadioButton }
-                            .jelly { icon = id },
+                            .semantics { this.selected = on }
+                            .jelly(role = Role.RadioButton) { icon = id },
                         contentAlignment = Alignment.Center,
                     ) { LineIcon(path, if (on) Color.White else Palette.Ink, size = 19.dp) }
                 }
@@ -626,8 +626,8 @@ fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, 
                 row.forEach { (key, label, icon) ->
                     val on = key == selected
                     Column(
-                        Modifier.weight(1f).semantics { this.selected = on; role = Role.RadioButton }
-                            .jelly { if (key == ADD_KEY) onAdd?.invoke() else onSelect(key) }.padding(vertical = 4.dp),
+                        Modifier.weight(1f).semantics { if (key != ADD_KEY) this.selected = on }
+                            .jelly(role = if (key == ADD_KEY) Role.Button else Role.RadioButton) { if (key == ADD_KEY) onAdd?.invoke() else onSelect(key) }.padding(vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -635,7 +635,7 @@ fun CategoryGrid(items: List<Triple<String, String, String>>, selected: String, 
                             Modifier.size(46.dp).then(if (on) Modifier.tinted(RoundedCornerShape(16.dp), Palette.Cta) else Modifier.glassControl(RoundedCornerShape(16.dp))),
                             contentAlignment = Alignment.Center,
                         ) { LineIcon(icon, if (on) Color.White else Palette.Ink, size = 21.dp) }
-                        Text(label, fontSize = 12.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.SemiBold, color = if (on) Palette.Ink else Palette.Muted)
+                        Text(label, fontSize = 12.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, color = if (on) Palette.Ink else Palette.Muted)
                     }
                 }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }

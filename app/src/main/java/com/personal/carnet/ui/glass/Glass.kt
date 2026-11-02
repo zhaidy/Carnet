@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.Font
@@ -87,7 +88,7 @@ val Inter = FontFamily(
     Font(R.font.carnet_inter_regular, FontWeight.Normal),
     Font(R.font.carnet_inter_medium, FontWeight.Medium),
     Font(R.font.carnet_inter_semibold, FontWeight.SemiBold),
-    Font(R.font.carnet_inter_bold, FontWeight.SemiBold),
+    Font(R.font.carnet_inter_bold, FontWeight.Bold),
 )
 val InterDisplay = FontFamily(Font(R.font.carnet_inter_display_semibold, FontWeight.SemiBold))
 
@@ -206,16 +207,16 @@ fun Modifier.tinted(shape: Shape = RoundedCornerShape(50), brush: Brush = Palett
 fun Modifier.holo(shape: Shape = RoundedCornerShape(30.dp)): Modifier =
     realGlass(shape, lensScale = 1.22f, boost = 1.55f, frost = 0.26f, rimWidth = 1.6.dp, shadow = true)
 
-/** 按下去像果冻一样压扁，松手弹回 */
+/** 按下去像果冻一样压扁，松手弹回；[role] 给读屏用，默认是按钮 */
 @Composable
-fun Modifier.jelly(enabled: Boolean = true, onClick: () -> Unit): Modifier {
+fun Modifier.jelly(enabled: Boolean = true, role: Role? = Role.Button, onClick: () -> Unit): Modifier {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val sx by animateFloatAsState(if (pressed) 0.93f else 1f, spring(dampingRatio = 0.38f, stiffness = 600f), label = "sx")
     val sy by animateFloatAsState(if (pressed) 0.9f else 1f, spring(dampingRatio = 0.38f, stiffness = 600f), label = "sy")
     return this
         .graphicsLayer { scaleX = sx; scaleY = sy }
-        .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
+        .clickable(interactionSource = source, indication = null, enabled = enabled, role = role, onClick = onClick)
 }
 
 /**

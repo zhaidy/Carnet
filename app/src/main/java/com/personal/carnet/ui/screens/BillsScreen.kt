@@ -140,7 +140,6 @@ fun BillsScreen(snapshot: Snapshot, onOpen: (Entry) -> Unit, initialLedgerId: Lo
                 }
                 if (!calendar) Box(
                     Modifier.then(if (allTime) Modifier.holo(RoundedCornerShape(18.dp)) else Modifier.glassControl(RoundedCornerShape(18.dp)))
-                        .semantics { role = Role.Switch }
                         .jelly {
                             allTime = !allTime
                             if (!allTime) monthIndex = now.year * 12 + now.monthValue - 1
