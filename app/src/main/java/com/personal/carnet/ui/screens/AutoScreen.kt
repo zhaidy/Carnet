@@ -78,7 +78,7 @@ fun AutoScreen(snapshot: Snapshot, vm: MainViewModel, onBack: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Strong("Google 钱包付款自动记账")
                     Label(
-                        "刷卡后 Google 钱包会发一条通知，Carnet 读到就记一笔，再发通知让你「算我们俩的」或「撤销」。只读 Google 钱包的通知，别的应用的不看也不存。",
+                        "刷卡后 Google 钱包（或手机自带的钱包）会发一条通知，Carnet 读到就记一笔，再发通知让你「算我们俩的」或「撤销」。只读钱包应用的通知，别的应用的不看也不存。",
                         size = 12.sp, weight = FontWeight.Medium,
                     )
                     if (!granted) {
@@ -94,6 +94,11 @@ fun AutoScreen(snapshot: Snapshot, vm: MainViewModel, onBack: () -> Unit) {
                             }
                             GlassSwitch(config.walletEnabled, "自动记账") { vm.setWalletEnabled(it) }
                         }
+                        Label(
+                            config.lastSeen?.let { "最近读到的一条：$it" }
+                                ?: "还没读到过钱包的通知。刷过卡还是空的话，把通知使用权关掉再打开一次。",
+                            size = 12.sp, weight = FontWeight.Medium,
+                        )
                     }
                 }
             }

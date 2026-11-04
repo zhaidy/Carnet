@@ -22,6 +22,16 @@ object WalletParser {
 
     const val WALLET_PACKAGE = "com.google.android.apps.walletnfcrel"
 
+    /** 手机厂商自带的钱包也会发同样的刷卡通知，包名带 wallet 的也收 */
+    private val otherWallets = setOf(
+        "com.google.android.apps.nbu.paisa.user",
+        "com.samsung.android.spay",
+        "com.samsung.android.samsungpay.gear",
+    )
+
+    fun isWalletPackage(pkg: String): Boolean =
+        pkg == WALLET_PACKAGE || pkg in otherWallets || pkg.contains("wallet", ignoreCase = true)
+
     private val amount = Regex("""(S\$|SGD|SG\$|CN¥|RMB|CNY|￥|¥|\$)\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)""")
     private val last4 = Regex("""(?:[•·*●∙]{1,4}|x{2,4}|尾号)\s?(\d{4})""", RegexOption.IGNORE_CASE)
     private val refundWords = listOf("refund", "退款", "退回")
@@ -55,5 +65,10 @@ object WalletParser {
         return clean(rest).ifBlank { "Google 钱包付款" }
     }
 
-    private fun clean(s: String) = s.replace(Regex("""[\s•·*●∙]+"""), " ").trim(' ', '.', ',', '，', '。', '-', '·')
+    /** 卡组织给的商户名后面常跟一串终端号（McDonalds 930170），去掉才好按商户记分类 */
+    private fun clean(s: String): String {
+        val t = s.replace(Regex("""[\s•·*●∙]+"""), " ").trim(' ', '.', ',', '，', '。', '-', '·')
+        val stripped = t.replace(Regex("""(\s+#?\d{4,})+$"""), "").trim()
+        return if (stripped.any { it.isLetter() }) stripped else t
+    }
 }

@@ -50,4 +50,21 @@ class WalletParserTest {
     fun 没金额的通知不管() {
         assertNull(WalletParser.parse("Card added", "Your Visa ••4821 is ready to use"))
     }
+
+    @Test
+    fun 钱包中文通知_金额贴着币种() {
+        val p = WalletParser.parse("McDonalds 930170", "DBS yuu Visa Card ••6995 有一笔 SGD23.85的支出")!!
+        assertEquals(2385L, p.cents)
+        assertEquals(Currency.SGD, p.currency)
+        assertEquals("6995", p.last4)
+        assertEquals(false, p.refund)
+        assertEquals("McDonalds", p.merchant)
+    }
+
+    @Test
+    fun 手机厂商的钱包也收() {
+        assertEquals(true, WalletParser.isWalletPackage(WalletParser.WALLET_PACKAGE))
+        assertEquals(true, WalletParser.isWalletPackage("com.finshell.wallet"))
+        assertEquals(false, WalletParser.isWalletPackage("com.whatsapp"))
+    }
 }
