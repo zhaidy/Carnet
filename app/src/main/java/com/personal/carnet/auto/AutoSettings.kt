@@ -24,6 +24,8 @@ data class AutoConfig(
     val recent: List<Long>,
     val claudeKey: String,
     val claudeModel: String,
+    /** 最近读到的一条钱包通知和处理结果，没记上时好看出是哪一步 */
+    val lastSeen: String?,
 )
 
 class AutoSettings(context: Context) : ClaudeSettings {
@@ -44,6 +46,7 @@ class AutoSettings(context: Context) : ClaudeSettings {
         recent = sp.getString("recent", null)?.let { s -> JSONArray(s).let { a -> (0 until a.length()).map { a.getLong(it) } } }.orEmpty(),
         claudeKey = sp.getString("claude_key", "").orEmpty(),
         claudeModel = sp.getString("claude_model", ClaudeClient.DEFAULT_MODEL).orEmpty(),
+        lastSeen = sp.getString("last_seen", null),
     )
 
     @Synchronized
@@ -51,6 +54,8 @@ class AutoSettings(context: Context) : ClaudeSettings {
         sp.edit().apply(block).commit()
         _config.value = load()
     }
+
+    fun noteSeen(summary: String) = edit { putString("last_seen", summary) }
 
     fun setWalletEnabled(on: Boolean) = edit { putBoolean("wallet", on) }
 

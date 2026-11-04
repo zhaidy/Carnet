@@ -59,6 +59,10 @@ class CarnetApp : Application() {
                 .collect { sync.pushMyName(it) }
         }
         sync.start()
+        // 应用更新后系统有时不会自动重连通知监听，开应用时主动请它重连
+        if (packageName in androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(this)) {
+            com.personal.carnet.auto.WalletListener.rebind(this)
+        }
         // 账一变，桌面小组件跟着刷新（显示的文字没变就不刷）
         appScope.launch {
             repository.snapshot
