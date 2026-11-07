@@ -20,7 +20,19 @@ data class Sentence(
     val account: String?,
 )
 
-/** 记账里用 Claude 的几件事：认付款通知、猜商户分类、一句话记账 */
+/** 截图里认出的一笔；看不出的是 null */
+data class ScreenshotPayment(
+    val income: Boolean,
+    val cents: Long,
+    val currency: Currency?,
+    val category: String,
+    val note: String,
+    val date: LocalDate?,
+    val last4: String?,
+    val account: String?,
+)
+
+/** 记账里用 Claude 的几件事：认付款通知、猜商户分类、一句话记账、认截图 */
 class Assistant(private val claude: ClaudeClient) {
 
     val configured: Boolean get() = claude.configured
@@ -95,10 +107,62 @@ class Assistant(private val claude: ClaudeClient) {
         )
     }
 
+    /** 截图记账：付款成功页、小票、银行 / 支付宝 / 微信的账单列表，一张图里可能有好几笔 */
+    suspend fun readScreenshot(image: ImageInput, accounts: List<String>): List<ScreenshotPayment> {
+        val incomeKeys = Categories.income.map { it.key }
+        val item = obj(
+            "kind" to enumOf(listOf("expense", "income")),
+            "amount" to str("实际付出或收到的金额，只要数字，比如 12.80"),
+            "currency" to enumOf(listOf("SGD", "CNY", "UNKNOWN")),
+            "category" to enumOf(expenseKeys + incomeKeys),
+            "merchant" to str("商户或对方的名字，简短；看不出就空字符串"),
+            "date" to str("交易日期 YYYY-MM-DD；图里没有日期就空字符串"),
+            "last4" to str("付款卡号后四位，没有就空字符串"),
+            "account" to enumOf(accounts + ""),
+        )
+        val schema = obj("payments" to JSONObject().put("type", "array").put("items", item))
+        val prompt = """
+            这是手机上的一张截图，可能是付款成功页、小票、外卖 / 打车订单，或者银行、信用卡、支付宝、微信的账单列表。
+            把图里每一笔已经发生的收支列出来，从上到下的顺序。今天是 ${LocalDate.now()}。
+            - 只要真正付出去或收到的钱；余额、额度、积分、优惠券面额、待支付、失败的都不要
+            - 小票、订单只记实付的总额一笔，不拆成每样东西
+            - 退款、别人转给我的钱记 income，分类用 other_in；工资用 salary
+            - 金额前面的 S$ / SGD 是新币，¥ / 元 / RMB / CNY 是人民币；看不出是 UNKNOWN
+            - 日期只写了月日的，按今天往前推最近的那天补上年份；写「今天」「昨天」的换成日期
+            - 看得出是用哪张卡 / 支付宝 / 微信付的，account 选对应的账户，看不出留空
+            - 图里没有收支就返回空数组
+            支出分类：$categoryList；收入分类：${Categories.income.joinToString("、") { "${it.key}=${it.label}" }}
+            账户：${accounts.joinToString("、")}
+        """.trimIndent()
+        return parseScreenshot(claude.json(prompt, schema, listOf(image)))
+    }
+
     /** 设置页里「试一下」：发一个最小的请求看 key 能不能用 */
     suspend fun ping(): String {
         val r = claude.json("回答 ok", obj("answer" to str("")))
         return r.optString("answer").ifBlank { "ok" }
+    }
+
+    companion object {
+        /** 把 Claude 回的 payments 换成 [ScreenshotPayment]；金额认不出的跳过 */
+        fun parseScreenshot(r: JSONObject): List<ScreenshotPayment> {
+            val list = r.optJSONArray("payments") ?: return emptyList()
+            return (0 until list.length()).mapNotNull { i ->
+                val p = list.optJSONObject(i) ?: return@mapNotNull null
+                val amount = p.optString("amount").filter { it.isDigit() || it == '.' || it == ',' }
+                val cents = Money.parse(amount)?.takeIf { it > 0 } ?: return@mapNotNull null
+                ScreenshotPayment(
+                    income = p.optString("kind") == "income",
+                    cents = cents,
+                    currency = when (p.optString("currency")) { "SGD" -> Currency.SGD; "CNY" -> Currency.CNY; else -> null },
+                    category = p.optString("category"),
+                    note = p.optString("merchant").trim(),
+                    date = runCatching { LocalDate.parse(p.optString("date").trim()) }.getOrNull(),
+                    last4 = p.optString("last4").trim().takeIf { it.length == 4 && it.all(Char::isDigit) },
+                    account = p.optString("account").ifBlank { null },
+                )
+            }
+        }
     }
 
     private fun obj(vararg props: Pair<String, JSONObject>): JSONObject {

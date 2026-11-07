@@ -1,6 +1,13 @@
 package com.personal.carnet.ui.screens
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.personal.carnet.ai.ScreenshotPayment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.personal.carnet.ui.CustomCategories
 import com.personal.carnet.ui.Partner
 
@@ -126,6 +133,55 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var sentence by rememberSaveable { mutableStateOf("") }
     var thinking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val autoConfig by vm.autoConfig.collectAsState()
+    // 截图里认出的几笔；shot 是现在填在表单里的那一笔，recorded 是已经记了的
+    var shots by remember { mutableStateOf<List<ScreenshotPayment>>(emptyList()) }
+    var shot by remember { mutableStateOf<Int?>(null) }
+    var recorded by remember { mutableStateOf<Set<Int>>(emptySet()) }
+
+    /** 把截图里的一笔填进表单，还没记 */
+    fun fill(index: Int) {
+        val p = shots.getOrNull(index) ?: return
+        shot = index
+        mode = if (p.income) Mode.INCOME else Mode.EXPENSE
+        amount = plain(p.cents)
+        val keys = (if (p.income) Categories.income + CustomCategories.income() else Categories.expense + CustomCategories.expense()).map { it.key }
+        category = p.category.takeIf { it in keys } ?: if (p.income) "other_in" else "more"
+        note = p.note
+        day = (p.date ?: LocalDate.now()).toEpochDay()
+        val acc = p.last4?.let { autoConfig.cards[it] }?.let { id -> accounts.firstOrNull { it.id == id } }
+            ?: p.account?.let { name -> accounts.firstOrNull { it.name == name } }
+        if (acc != null) accountId = acc.id
+        if (!p.income) payer = Payer.ME
+        val chosenLedger = if (p.income) personal else ledgers.firstOrNull { it.id == ledgerId }
+        spend = p.currency ?: chosenLedger?.currency ?: (acc ?: accounts.firstOrNull { it.id == accountId })?.currency ?: spend
+        rateText = ""; rateOpen = false
+    }
+
+    val shotPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null || thinking) return@rememberLauncherForActivityResult
+        thinking = true
+        scope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                    ?: throw com.personal.carnet.ai.AiException("读不了这张图")
+                val found = vm.readScreenshot(bytes, accounts.map { it.name })
+                shots = found
+                recorded = emptySet()
+                shot = null
+                when (found.size) {
+                    0 -> toast.show("图里没认出付款或收款")
+                    1 -> { fill(0); toast.show("认出来了，看一下对不对再点完成") }
+                    else -> { fill(0); toast.show("认出 ${found.size} 笔，先填了第一笔") }
+                }
+            } catch (e: Exception) {
+                toast.show(e.message ?: "没认出来")
+            } finally {
+                thinking = false
+            }
+        }
+    }
 
     var fromId by rememberSaveable { mutableStateOf(moving?.accountId ?: accounts.firstOrNull { it.currency == MainCurrency }?.id ?: accounts.firstOrNull()?.id) }
     var toId by rememberSaveable { mutableStateOf(moving?.toAccountId ?: accounts.firstOrNull { it.currency == Currency.CNY }?.id ?: accounts.getOrNull(1)?.id) }
@@ -266,7 +322,11 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 }
                 toast.show(msg)
                 amount = ""; note = ""; rateText = ""; rateOpen = false
-                if (close) onClose()
+                shot?.let { recorded = recorded + it }
+                shot = null
+                if (close) { onClose(); return }
+                // 截图里还有没记的，接着填下一笔
+                shots.indices.firstOrNull { it !in recorded }?.let { fill(it) }
             }
 
             Column(
@@ -305,7 +365,13 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                                 }
                             }.padding(horizontal = 14.dp, vertical = 11.dp),
                         ) { Strong(if (thinking) "…" else "听懂", size = 14.sp, color = Color.White) }
+                        if (e == null) {
+                            RoundGlassButton(IconPaths.IMAGE, "从截图记账") {
+                                if (!thinking) shotPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
+                        }
                     }
+                    if (shots.size > 1) ShotList(shots, shot, recorded) { fill(it) }
                 }
                 // 顶上这块也是总览那杯水：输入支出时杯子跟着往下降，记收入往上涨，
                 // 记之前就看得到这一笔要喝掉这个月多少；液体颜色跟着币种（新币靛蓝、人民币玫粉）
@@ -691,4 +757,39 @@ private fun Key(label: String, modifier: Modifier, onClick: () -> Unit) {
         modifier.height(50.dp).glassControl(RoundedCornerShape(18.dp)).jelly(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink) }
+}
+
+/** 截图里认出好几笔：点一笔填进表单，记过的打勾 */
+@Composable
+private fun ShotList(shots: List<ScreenshotPayment>, current: Int?, recorded: Set<Int>, onPick: (Int) -> Unit) {
+    GlassCard(padding = 12.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Label("截图里有 ${shots.size} 笔，记了 ${recorded.size} 笔 · 点一笔填进来", size = 12.sp, weight = FontWeight.SemiBold)
+            shots.forEachIndexed { i, p ->
+                val on = i == current
+                val done = i in recorded
+                Row(
+                    Modifier.fillMaxWidth()
+                        .then(if (on) Modifier.glassControl(RoundedCornerShape(12.dp)) else Modifier)
+                        .semantics { selected = on; role = Role.Button }
+                        .jelly { onPick(i) }
+                        .heightIn(min = 40.dp)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.width(16.dp)) { if (done) LineIcon(IconPaths.CHECK, Palette.Violet, size = 14.dp, width = 2.4f) }
+                    Text(
+                        listOfNotNull(p.date?.let { "${it.monthValue}/${it.dayOfMonth}" }, p.note.ifBlank { null }).joinToString(" · ").ifBlank { "第 ${i + 1} 笔" },
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (done) Palette.Muted else Palette.Ink,
+                        maxLines = 1, modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        (if (p.income) "+" else "") + (p.currency?.let { Money.format(p.cents, it) } ?: Money.format(p.cents)),
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (done) Palette.Muted else Palette.Ink,
+                    )
+                }
+            }
+        }
+    }
 }
