@@ -23,6 +23,26 @@ class ClaudeClientTest {
     }
 
     @Test
+    fun 没有图时内容就是一段文字() {
+        val message = ClaudeClient.requestBody("claude-opus-5-5", "hi", schema).getJSONArray("messages").getJSONObject(0)
+        assertEquals("hi", message.getString("content"))
+    }
+
+    @Test
+    fun 带截图时图在前文字在后() {
+        val body = ClaudeClient.requestBody("claude-opus-5-5", "认一下", schema, listOf(ImageInput("image/jpeg", "QUJD")))
+        val content = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+        assertEquals(2, content.length())
+        val image = content.getJSONObject(0)
+        assertEquals("image", image.getString("type"))
+        assertEquals("base64", image.getJSONObject("source").getString("type"))
+        assertEquals("image/jpeg", image.getJSONObject("source").getString("media_type"))
+        assertEquals("QUJD", image.getJSONObject("source").getString("data"))
+        assertEquals("text", content.getJSONObject(1).getString("type"))
+        assertEquals("认一下", content.getJSONObject(1).getString("text"))
+    }
+
+    @Test
     fun haiku没有兜底() {
         assertFalse(ClaudeClient.requestBody("claude-haiku-5-5", "hi", schema).has("fallbacks"))
     }

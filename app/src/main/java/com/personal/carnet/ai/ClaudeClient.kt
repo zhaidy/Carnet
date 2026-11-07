@@ -13,6 +13,9 @@ import java.util.concurrent.TimeUnit
 
 class AiException(message: String) : Exception(message)
 
+/** 发给 Claude 看的一张图：image/jpeg 之类，内容是 base64 */
+class ImageInput(val mediaType: String, val base64: String)
+
 /** 用哪个模型、key 是什么；存在本机 */
 interface ClaudeSettings {
     val apiKey: String
@@ -21,7 +24,7 @@ interface ClaudeSettings {
 
 /**
  * 调 Claude 的 Messages API，用 output_config.format 按 JSON Schema 返回 JSON。
- * 记账里用到的都是小活（认通知、猜分类、一句话记账），effort 用 low，回得快也便宜。
+ * 记账里用到的都是小活（认通知、猜分类、一句话记账、认截图），effort 用 low，回得快也便宜。
  */
 class ClaudeClient(private val settings: ClaudeSettings) {
 
@@ -32,7 +35,7 @@ class ClaudeClient(private val settings: ClaudeSettings) {
 
     val configured: Boolean get() = settings.apiKey.isNotBlank()
 
-    suspend fun json(prompt: String, schema: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+    suspend fun json(prompt: String, schema: JSONObject, images: List<ImageInput> = emptyList()): JSONObject = withContext(Dispatchers.IO) {
         val key = settings.apiKey.trim()
         if (key.isBlank()) throw AiException("还没有填 Claude API Key")
         val model = settings.model
@@ -41,7 +44,7 @@ class ClaudeClient(private val settings: ClaudeSettings) {
             .header("x-api-key", key)
             .header("anthropic-version", API_VERSION)
         if (supportsFallback(model)) builder.header("anthropic-beta", FALLBACK_BETA)
-        val request = builder.post(requestBody(model, prompt, schema).toString().toRequestBody("application/json".toMediaType())).build()
+        val request = builder.post(requestBody(model, prompt, schema, images).toString().toRequestBody("application/json".toMediaType())).build()
 
         val (code, body) = try {
             http.newCall(request).execute().use { it.code to it.body.string() }
@@ -68,7 +71,8 @@ class ClaudeClient(private val settings: ClaudeSettings) {
         /** Haiku 没有服务端的拒答兜底 */
         fun supportsFallback(model: String) = !model.startsWith("claude-haiku")
 
-        fun requestBody(model: String, prompt: String, schema: JSONObject): JSONObject = JSONObject()
+        /** 有图时 content 是「图…图、文字」的数组，没图就是一段文字 */
+        fun requestBody(model: String, prompt: String, schema: JSONObject, images: List<ImageInput> = emptyList()): JSONObject = JSONObject()
             .put("model", model)
             .put("max_tokens", 4000)
             .put(
@@ -77,8 +81,22 @@ class ClaudeClient(private val settings: ClaudeSettings) {
                     .put("effort", "low")
                     .put("format", JSONObject().put("type", "json_schema").put("schema", schema)),
             )
-            .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", prompt)))
+            .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content(prompt, images))))
             .apply { if (supportsFallback(model)) put("fallbacks", "default") }
+
+        private fun content(prompt: String, images: List<ImageInput>): Any {
+            if (images.isEmpty()) return prompt
+            val blocks = JSONArray()
+            images.forEach { img ->
+                blocks.put(
+                    JSONObject().put("type", "image").put(
+                        "source",
+                        JSONObject().put("type", "base64").put("media_type", img.mediaType).put("data", img.base64),
+                    ),
+                )
+            }
+            return blocks.put(JSONObject().put("type", "text").put("text", prompt))
+        }
 
         /** 只取最后一个 text 块里的 JSON；先看 stop_reason，拒答和截断要说清楚 */
         fun parseReply(body: String): JSONObject {

@@ -3,6 +3,8 @@ package com.personal.carnet.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.personal.carnet.ai.Assistant
+import com.personal.carnet.ai.Screenshot
+import com.personal.carnet.ai.ScreenshotPayment
 import com.personal.carnet.ai.Sentence
 import com.personal.carnet.auto.AutoConfig
 import com.personal.carnet.auto.AutoRecorder
@@ -96,6 +98,15 @@ class MainViewModel(
     /** 一句话记账 */
     suspend fun understand(sentence: String, ledgers: List<String>, accounts: List<String>): Sentence =
         assistant.understand(sentence, ledgers, accounts)
+
+    /** 截图记账：认出图里的每一笔；改过分类的商家用记住的分类 */
+    suspend fun readScreenshot(bytes: ByteArray, accounts: List<String>): List<ScreenshotPayment> {
+        val image = kotlinx.coroutines.withContext(Dispatchers.Default) { Screenshot.prepare(bytes) }
+        return assistant.readScreenshot(image, accounts).map { p ->
+            val remembered = if (!p.income && p.note.isNotBlank()) auto.merchantCategory(p.note) else null
+            if (remembered != null) p.copy(category = remembered) else p
+        }
+    }
 
     fun shareAuto(entryId: Long) = viewModelScope.launch {
         repo.moveToSharedLedger(entryId)
