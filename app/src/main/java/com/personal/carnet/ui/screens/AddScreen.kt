@@ -2,6 +2,7 @@ package com.personal.carnet.ui.screens
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -139,6 +141,29 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     var shots by remember { mutableStateOf<List<ScreenshotPayment>>(emptyList()) }
     var shot by remember { mutableStateOf<Int?>(null) }
     var recorded by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    // 正在认的是截图（不是说的一句话），顶上显示「正在认截图」
+    var readingShot by remember { mutableStateOf(false) }
+    // 这张截图在相册里的地址：记完了问要不要删掉；认不出地址（云端相册的图等）就是 null
+    var shotMedia by remember { mutableStateOf<android.net.Uri?>(null) }
+    var closeAfterDelete by remember { mutableStateOf(false) }
+    val deleteShot = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) toast.show("截图删掉了")
+        if (closeAfterDelete) { closeAfterDelete = false; onClose() }
+    }
+
+    /** 截图里的账记好了：弹系统的确认框问要不要删掉这张截图（Android 11+，系统会让你选允许 / 拒绝）；问了返回 true */
+    fun askDeleteShot(): Boolean {
+        val media = shotMedia ?: return false
+        shotMedia = null
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return false
+        return try {
+            val request = android.provider.MediaStore.createDeleteRequest(context.contentResolver, listOf(media))
+            deleteShot.launch(IntentSenderRequest.Builder(request.intentSender).build())
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     /** 把截图里的一笔填进表单，还没记 */
     fun fill(index: Int) {
@@ -162,6 +187,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     val shotPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null || thinking) return@rememberLauncherForActivityResult
         thinking = true
+        readingShot = true
         scope.launch {
             try {
                 val bytes = withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
@@ -170,6 +196,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 shots = found
                 recorded = emptySet()
                 shot = null
+                shotMedia = if (found.isEmpty()) null else com.personal.carnet.ai.Screenshot.mediaUri(context, uri)
                 when (found.size) {
                     0 -> toast.show("图里没认出付款或收款")
                     1 -> { fill(0); toast.show("认出来了，看一下对不对再点完成") }
@@ -179,6 +206,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 toast.show(e.message ?: "没认出来")
             } finally {
                 thinking = false
+                readingShot = false
             }
         }
     }
@@ -322,8 +350,15 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                 }
                 toast.show(msg)
                 amount = ""; note = ""; rateText = ""; rateOpen = false
+                val fromShot = shot != null
                 shot?.let { recorded = recorded + it }
                 shot = null
+                val allDone = shots.isNotEmpty() && shots.indices.all { it in recorded }
+                // 截图里的记完了（或者记了一笔就走）：问要不要删掉这张截图，选完再关
+                if (fromShot && (close || allDone) && askDeleteShot()) {
+                    if (close) closeAfterDelete = true
+                    return
+                }
                 if (close) { onClose(); return }
                 // 截图里还有没记的，接着填下一笔
                 shots.indices.firstOrNull { it !in recorded }?.let { fill(it) }
@@ -371,6 +406,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                             }
                         }
                     }
+                    if (thinking) Thinking(if (readingShot) "正在认截图里的账，要几秒…" else "正在听…")
                     if (shots.size > 1) ShotList(shots, shot, recorded) { fill(it) }
                 }
                 // 顶上这块也是总览那杯水：输入支出时杯子跟着往下降，记收入往上涨，
@@ -757,6 +793,17 @@ private fun Key(label: String, modifier: Modifier, onClick: () -> Unit) {
         modifier.height(50.dp).glassControl(RoundedCornerShape(18.dp)).jelly(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Text(label, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Palette.Ink) }
+}
+
+/** 认截图、听一句话要等几秒：转圈 + 一句话，不然看着像没反应 */
+@Composable
+private fun Thinking(text: String) {
+    GlassCard(padding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CircularProgressIndicator(Modifier.size(18.dp), color = Palette.Violet, strokeWidth = 2.dp)
+            Label(text, size = 13.sp, weight = FontWeight.SemiBold)
+        }
+    }
 }
 
 /** 截图里认出好几笔：点一笔填进表单，记过的打勾 */
