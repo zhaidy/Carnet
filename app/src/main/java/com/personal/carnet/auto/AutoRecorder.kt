@@ -18,6 +18,8 @@ import com.personal.carnet.data.Repository
 import com.personal.carnet.domain.Categories
 import com.personal.carnet.domain.Money
 import com.personal.carnet.update.AppNotifications
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** 把一条付款通知记成一笔账，再发一条通知让你改成共用或者撤销 */
 class AutoRecorder(
@@ -30,7 +32,16 @@ class AutoRecorder(
     /** 返回认出来的结果（试一下用）；真的记了账时 entryId 不是 null */
     data class Result(val payment: WalletPayment?, val accountName: String?, val category: String?, val entryId: Long?, val problem: String?)
 
-    suspend fun handle(title: String, text: String, postTime: Long, record: Boolean = true): Result {
+    /**
+     * 钱包常常刚发完一条通知又马上更新一次（先是卡组织给的「MR DIY - WECP」，再换成「MR.DIY」），
+     * 两条几乎同时到。一条一条处理，后到的那条才查得到先记下的那笔，不会两条都当成新的记上。
+     */
+    private val lock = Mutex()
+
+    suspend fun handle(title: String, text: String, postTime: Long, record: Boolean = true): Result =
+        lock.withLock { handleLocked(title, text, postTime, record) }
+
+    private suspend fun handleLocked(title: String, text: String, postTime: Long, record: Boolean): Result {
         var payment = WalletParser.parse(title, text)
         if (payment == null && assistant.configured) payment = runCatching { assistant.readNotification(title, text) }.getOrNull()
         if (payment == null) return Result(null, null, null, null, "这条不像付款通知")
