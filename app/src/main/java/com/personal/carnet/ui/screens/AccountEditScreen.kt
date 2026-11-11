@@ -74,6 +74,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
     val snapshot by vm.snapshot.collectAsState()
     var rateText by rememberSaveable { mutableStateOf(FxRate.format(defaultRate.cnyPerSgd)) }
     var cashflow by rememberSaveable { mutableStateOf(old?.inCashflow ?: true) }
+    var netWorth by rememberSaveable { mutableStateOf(old?.inNetWorth ?: true) }
     var inUse by rememberSaveable { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     if (old != null) LaunchedEffect(old.id) { inUse = vm.accountInUse(old.id) }
@@ -262,6 +263,17 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                         }
                         GlassSwitch(cashflow, "算进发薪前还能花") { cashflow = it }
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Strong("算进净资产", size = 13.sp)
+                            Label(
+                                if (netWorth) (if (credit) "这张卡的欠款会从净资产里扣" else "这里的钱算进净资产")
+                                else "不算进净资产，余额和账照样记",
+                                size = 12.sp, weight = FontWeight.Medium,
+                            )
+                        }
+                        GlassSwitch(netWorth, "算进净资产") { netWorth = it }
+                    }
                 }
             }
             if (old != null) {
@@ -295,6 +307,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                                 dueDay = if (credit) dueDay else null,
                                 statementDay = if (credit && statementDay > 0) statementDay else null,
                                 inCashflow = cashflow && !credit,
+                                inNetWorth = netWorth,
                             ),
                         )
                         toast.show("改好了「${name.trim()}」")
@@ -309,6 +322,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                                 dueDay = if (credit) dueDay else null,
                                 statementDay = if (credit && statementDay > 0) statementDay else null,
                                 inCashflow = cashflow && !credit,
+                                inNetWorth = netWorth,
                             ),
                         )
                         toast.show("已添加「${name.trim()}」· " + Money.format(cents, currency))

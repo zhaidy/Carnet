@@ -110,7 +110,7 @@ private fun AddDefaultsCard(snapshot: Snapshot) {
     val d = com.personal.carnet.ui.AddDefaults
     Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Strong("记账默认")
-        Label("点 ＋ 记一笔时先选好的；那一笔不一样的话再手动换。", size = 12.sp, weight = FontWeight.Medium)
+        Label("点 ＋ 记一笔时先选好的；账本跟着你上次记的走，账本里设了默认账户的话优先用那个。那一笔不一样的话再手动换。", size = 12.sp, weight = FontWeight.Medium)
         com.personal.carnet.ui.components.ChipRow(
             listOf<Pair<Long?, String>>(null to "个人") + snapshot.ledgers.map { it.ledger }.filter { it.shared || snapshot.ledgers.count { v -> !v.ledger.shared } > 1 }
                 .map { it.id to it.name },

@@ -86,6 +86,25 @@ class BooksTest {
     }
 
     @Test
+    fun 关掉算进净资产的账户_净资产不再包含它() {
+        val entries = listOf(expense(1, trip, 20000, card, accountCents = 3774))
+        val all = listOf(bank, card, icbc)
+        val ledgers = listOf(personal, us, trip)
+        // 工行卡和信用卡都不算：只剩新币储蓄卡和她多垫的
+        val snap = Books.snapshot(
+            listOf(bank, card.copy(inNetWorth = false), icbc.copy(inNetWorth = false)),
+            ledgers, entries, emptyList(), rate, 0,
+        )
+        assertEquals(842050L, snap.mainCashCents)
+        assertEquals(0L, snap.cnyCashCents)
+        assertEquals(0L, snap.cardsOwedCents)
+        assertEquals(842050 + 1887L, snap.netWorthCents)
+        // 账户余额本身不变，关了只是不进净资产
+        assertEquals(Books.snapshot(all, ledgers, entries, emptyList(), rate, 0).accounts.map { it.balanceCents }, 
+            Books.snapshot(all.map { it.copy(inNetWorth = false) }, ledgers, entries, emptyList(), rate, 0).accounts.map { it.balanceCents })
+    }
+
+    @Test
     fun 这个月的花销只算你那份() {
         val entries = listOf(
             expense(1, personal, 1500, card, time = 500),

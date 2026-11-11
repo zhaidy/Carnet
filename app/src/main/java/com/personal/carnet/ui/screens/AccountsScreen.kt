@@ -162,6 +162,7 @@ private fun AccountCard(view: AccountView, rate: FxRate, level: Float, onClick: 
             a.statementDay?.takeIf { credit }?.let { "每月 $it 号出账单" },
             a.dueDay?.takeIf { credit }?.let { "每月 $it 号还全额" },
             if (!a.inCashflow && !credit) "不算进发薪前还能花" else null,
+            if (!a.inNetWorth) "不算进净资产" else null,
         )
         if (notes.isNotEmpty()) Text(notes.joinToString(" · "), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.Muted)
     }
