@@ -1,5 +1,6 @@
 package com.personal.carnet.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -30,6 +31,9 @@ data class Account(
     val createdAt: Long = System.currentTimeMillis(),
     /** 信用卡每月几号出账单；设了的话，还卡只还到账单日为止欠的 */
     val statementDay: Int? = null,
+    /** 算不算进净资产；关了的账户余额照样记，只是不进净资产 */
+    @ColumnInfo(defaultValue = "1")
+    val inNetWorth: Boolean = true,
 )
 
 enum class SettleMode { MONTHLY, DATE, MANUAL }
@@ -60,6 +64,8 @@ data class Ledger(
     val autoSettleAccountId: Long? = null,
     /** 从哪天开始自动两清（打开开关那天），之前的结算日不补 */
     val autoSettleFromEpochDay: Long? = null,
+    /** 记到这个账本时默认从哪个账户付；null 是用「记账默认」里的。只在本机 */
+    val defaultAccountId: Long? = null,
 )
 
 enum class EntryKind { EXPENSE, INCOME, TRANSFER }

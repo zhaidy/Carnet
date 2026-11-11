@@ -113,4 +113,17 @@ class MigrationTest {
             assertEquals(table, expected, migrated)
         }
     }
+
+    @Test
+    fun 第八版加的净资产开关和账本默认账户和导出的一样() {
+        val added = CarnetDatabase.MIGRATION_7_8_SQL.map { sql ->
+            val m = Regex("""ALTER TABLE `(\w+)` ADD COLUMN `(\w+)` (\w+)( NOT NULL)?""").find(sql)!!.groupValues
+            Triple(m[1], m[2], m[3] to m[4].isNotEmpty())
+        }
+        for (table in listOf("accounts", "ledgers", "entries", "settlements", "recurring_rules")) {
+            val expected = columns(8, table)
+            val migrated = columns(7, table) + added.filter { it.first == table }.associate { it.second to it.third }
+            assertEquals(table, expected, migrated)
+        }
+    }
 }

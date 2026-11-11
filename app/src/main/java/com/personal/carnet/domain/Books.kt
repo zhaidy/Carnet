@@ -113,10 +113,12 @@ object Books {
 
         fun toMain(cents: Long, from: Currency) = rate.convert(cents, from, MainCurrency)
 
-        val cash = accountViews.filter { it.account.type != AccountType.CREDIT }
+        // 关了「算进净资产」的账户不进这几项
+        val counted = accountViews.filter { it.account.inNetWorth }
+        val cash = counted.filter { it.account.type != AccountType.CREDIT }
         val mainCash = cash.filter { it.account.currency == MainCurrency }.sumOf { it.balanceCents }
         val cnyCash = cash.filter { it.account.currency == Currency.CNY }.sumOf { it.balanceCents }
-        val cardsOwed = -accountViews.filter { it.account.type == AccountType.CREDIT }
+        val cardsOwed = -counted.filter { it.account.type == AccountType.CREDIT }
             .sumOf { toMain(it.balanceCents, it.account.currency) }
         val shared = ledgerViews.filter { it.ledger.shared }.sumOf { toMain(it.balanceCents, it.currency) }
         val cnyInMain = toMain(cnyCash, Currency.CNY)

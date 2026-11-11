@@ -88,6 +88,8 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
     val moneyAccounts = snapshot?.accounts?.map { it.account }?.filter { it.type != com.personal.carnet.data.AccountType.CREDIT }.orEmpty()
     var autoSettle by rememberSaveable { mutableStateOf(old?.autoSettleAccountId != null) }
     var autoAccountId by rememberSaveable { mutableStateOf(old?.autoSettleAccountId) }
+    // 记到这个账本时默认从哪个账户付；null 是用「我的 → 记账默认」里的
+    var defaultAccountId by rememberSaveable { mutableStateOf(old?.defaultAccountId) }
     var mode by rememberSaveable { mutableStateOf(old?.settleMode ?: SettleMode.DATE) }
     var day by rememberSaveable { mutableIntStateOf(old?.settleDay ?: 31) }
     var epochDay by rememberSaveable { mutableStateOf<Long?>(old?.settleEpochDay ?: LocalDate.now().plusMonths(1).toEpochDay()) }
@@ -188,6 +190,14 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             Label("账本货币", modifier = Modifier.width(56.dp))
                             Label("$currencyLabel · 记过账后不能改", size = 13.sp, weight = FontWeight.Medium)
                         }
+                    }
+                    val allAccounts = snapshot?.accounts?.map { it.account }.orEmpty()
+                    if (allAccounts.isNotEmpty()) {
+                        ChipRow(
+                            listOf<Pair<Long?, String>>(null to "不设") + allAccounts.map { it.id to (it.name + " " + it.currency.symbol) },
+                            defaultAccountId, "默认从哪付",
+                        ) { defaultAccountId = it }
+                        Label("记到这个账本时，先选好这个账户；那一笔不一样的话再手动换。", size = 11.sp, weight = FontWeight.Medium)
                     }
                 }
             }
@@ -319,6 +329,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
                             herFixedCents = if (withHer) herFixed else null,
+                            defaultAccountId = defaultAccountId,
                             autoSettleAccountId = if (withHer && autoSettle && mode != SettleMode.MANUAL) autoAccountId else null,
                             autoSettleFromEpochDay = if (withHer && autoSettle && mode != SettleMode.MANUAL) {
                                 old?.autoSettleFromEpochDay?.takeIf { old.autoSettleAccountId != null } ?: LocalDate.now().toEpochDay()
@@ -338,6 +349,7 @@ fun LedgerEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: Ledger? = n
                             shared = withHer,
                             myPercent = if (withHer && ratio) myPercent else 50,
                             herFixedCents = if (withHer) herFixed else null,
+                            defaultAccountId = defaultAccountId,
                             autoSettleAccountId = if (withHer && autoSettle && mode != SettleMode.MANUAL) autoAccountId else null,
                             autoSettleFromEpochDay = if (withHer && autoSettle && mode != SettleMode.MANUAL) {
                                 old?.autoSettleFromEpochDay?.takeIf { old.autoSettleAccountId != null } ?: LocalDate.now().toEpochDay()

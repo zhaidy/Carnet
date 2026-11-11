@@ -116,7 +116,9 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
     }
     // 新记一笔：用「我的 → 记账默认」里设的账本、账户
     val defaultLedger = if (e == null) ledgers.firstOrNull { it.id == com.personal.carnet.ui.AddDefaults.ledgerId } else null
-    val defaultAccount = accounts.firstOrNull { it.id == com.personal.carnet.ui.AddDefaults.accountId } ?: accounts.firstOrNull()
+    // 账户：先看这个账本设的默认账户，再看「记账默认」，最后是第一个
+    val defaultAccount = accounts.firstOrNull { it.id == (defaultLedger ?: personal)?.defaultAccountId }
+        ?: accounts.firstOrNull { it.id == com.personal.carnet.ui.AddDefaults.accountId } ?: accounts.firstOrNull()
     var ledgerId by rememberSaveable { mutableStateOf(spending?.ledgerId ?: defaultLedger?.id ?: personal?.id) }
     var payer by rememberSaveable { mutableStateOf(spending?.payer ?: Payer.ME) }
     var accountId by rememberSaveable { mutableStateOf(spending?.accountId ?: defaultAccount?.id) }
@@ -340,6 +342,8 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     onClose()
                     return
                 }
+                // 下次记账默认还是这个账本（收入固定记个人账本，不算）
+                if (!isIncome) com.personal.carnet.ui.AddDefaults.setLedger(context, ledger.id)
                 val msg = buildString {
                     append("已记到「${ledger.name}」${Money.format(cents, spend)}")
                     if (isGroup) {
@@ -481,7 +485,10 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     ChipRow(ledgers.map { it.id to (it.name + (it.currency?.let { c -> " " + c.symbol } ?: "")) }, ledger.id, "记到") { id ->
                         ledgerId = id
                         val l = ledgers.first { it.id == id }
-                        spend = l.currency ?: account.currency
+                        // 账本设了默认账户就换过去
+                        val acc = accounts.firstOrNull { it.id == l.defaultAccountId } ?: account
+                        accountId = acc.id
+                        spend = l.currency ?: acc.currency
                         // 账本设了「对方出固定金额」就默认带上
                         fixedSplit = l.herFixedCents != null
                         herText = l.herFixedCents?.let { plain(it) } ?: ""
