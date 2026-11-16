@@ -187,15 +187,6 @@ class CashflowTest {
     }
 
     @Test
-    fun 发薪前还能花拆开() {
-        val plan = Cashflow.plan(listOf(salary, rent), listOf(bank, cardA.copy(dueDay = 13), icbc), balances, listOf(us), rate, today)
-        val parts = plan.spendableParts
-        assertEquals("能用的账户" to 842050L, parts.first())
-        assertEquals(listOf("房租", "11/13 还卡A"), parts.drop(1).map { it.first })
-        assertEquals(plan.spendableCents, parts.first().second - parts.drop(1).sumOf { it.second })
-    }
-
-    @Test
     fun 还款预测按日子排开() {
         // 今天 10/31：储蓄卡 8420.50；卡A 13 号还、欠 1102.30；11/20 房租 1800；11/26 工资 5800
         val yuu = cardA.copy(dueDay = 13)
@@ -252,5 +243,25 @@ class CashflowTest {
         // 11/13 还卡、11/20 房租之后最少，11/26 工资又多起来
         assertEquals("房租", f.lowest?.name)
         assertEquals(842050L - 110230L - 180000L, f.lowest?.balance)
+    }
+
+    @Test
+    fun 现在能放心花按还款预测里钱最少的时候算() {
+        // 11/16：储蓄卡 4356.63；11/20 房租 3300；11/26 工资 4772；卡A 29 号还、欠 3170.34
+        val now = LocalDate.of(2026, 11, 16)
+        val accts = listOf(bank, cardA.copy(dueDay = 29), icbc)
+        val bal = mapOf(1L to 435663L, 2L to -317034L, 4L to 0L)
+        val rules = listOf(salary.copy(amountCents = 477200), rent.copy(amountCents = 330000))
+        val plan = Cashflow.plan(rules, accts, bal, listOf(us), rate, now)
+        val f = Forecasts.build(plan, accts, bal, emptyList(), rate, now, emptyList())
+        // 只算到发薪那天会以为还能花 1056.63
+        assertEquals(105663L, plan.spendableCents)
+        // 可发薪后马上还卡，12/20 又交房租，那时下次工资还没到：现在一分都不能多花，还差 641.71
+        assertEquals(LocalDate.of(2026, 12, 20), f.lowest?.date)
+        assertEquals(105663L + 477200L - 317034L - 330000L, f.safeCents)
+        // 一路只进不出：现在能用的都能放心花
+        val calm = Forecasts.build(Cashflow.plan(listOf(salary), accts, mapOf(1L to 435663L), listOf(us), rate, now), accts, mapOf(1L to 435663L), emptyList(), rate, now, emptyList())
+        assertNull(calm.lowest)
+        assertEquals(435663L, calm.safeCents)
     }
 }

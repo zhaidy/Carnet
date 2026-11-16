@@ -421,7 +421,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                     (spending?.let { rate.convert(it.amountCents, it.currency, MainCurrency) } ?: 0)
                 val drain = if (herPaid) 0L else if (isIncome) -mainCents else mainCents
                 val after = if (salary > 0) before - drain.toFloat() / salary else before
-                val spendableAfter = snapshot.plan.spendableCents?.minus(drain)
+                val spendableAfter = snapshot.plan.payday?.let { snapshot.forecast?.safeCents }?.minus(drain)
                 Box(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp))) {
                     com.personal.carnet.ui.glass.MoneyVessel(after, if (spend == Currency.CNY) 0f else 1f, Modifier.matchParentSize())
                     Column(
@@ -449,7 +449,7 @@ fun AddScreen(snapshot: Snapshot, vm: MainViewModel, onClose: () -> Unit, onNewA
                         }
                         if (spendableAfter != null && drain != 0L) {
                             Label(
-                                "记完，发薪前还能花 " + Money.format(spendableAfter, MainCurrency),
+                                "记完，现在能放心花 " + Money.format(spendableAfter, MainCurrency),
                                 size = 12.sp, weight = FontWeight.SemiBold, color = if (spendableAfter < 0) Palette.Rose else Palette.Ink,
                             )
                         }

@@ -250,10 +250,10 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                     // 信用卡不算：刷卡的钱按还款日从储蓄卡里扣
                     if (!credit) Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Strong("算进「发薪前还能花」", size = 13.sp)
+                            Strong("算进「现在能放心花」", size = 13.sp)
                             Label(
                                 when {
-                                    cashflow -> "这里的钱会被当作发工资前能花的"
+                                    cashflow -> "这里的钱会拿来付房租、还卡和平时花"
                                     foreign -> "国内的钱默认不算，净资产照样算进去"
                                     credit -> "信用卡的欠款另外按还款日扣"
                                     else -> "不算这里的钱"
@@ -261,7 +261,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                                 size = 12.sp, weight = FontWeight.Medium,
                             )
                         }
-                        GlassSwitch(cashflow, "算进发薪前还能花") { cashflow = it }
+                        GlassSwitch(cashflow, "算进现在能放心花") { cashflow = it }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -282,7 +282,7 @@ fun AccountEditScreen(vm: MainViewModel, onDone: () -> Unit, editing: AccountVie
                         title = "删除这个账户",
                         question = "删掉「${old.name}」？",
                         confirmText = "删掉",
-                        blocked = if (inUse) "已经有账或者固定收支用到它了。不想再用的话，可以把余额改成 0、关掉「算进发薪前还能花」。" else null,
+                        blocked = if (inUse) "已经有账或者固定收支用到它了。不想再用的话，可以把余额改成 0、关掉「算进现在能放心花」。" else null,
                     ) {
                         scope.launch {
                             if (vm.deleteAccount(old.id)) { toast.show("删掉了「${old.name}」"); onDone() }
