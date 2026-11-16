@@ -69,7 +69,6 @@ import com.personal.carnet.ui.glass.tinted
 import com.personal.carnet.ui.line
 import com.personal.carnet.ui.todayText
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
 @Composable
 fun HomeScreen(
@@ -285,7 +284,7 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
         shown.animateTo(snapshot.netWorthCents.toFloat(), tween(1400, easing = FastOutSlowInEasing))
     }
     val plan = snapshot.plan
-    val spendable = plan.spendableCents
+    val forecast = snapshot.forecast
     val payday = plan.payday
     val level = remember(snapshot) { com.personal.carnet.ui.glass.cupLevel(snapshot) }
     val cash = snapshot.mainCashCents + snapshot.cnyCashInMainCents
@@ -303,9 +302,18 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
             Spacer(Modifier.height(if (formula) 24.dp else 96.dp))
             // 和杯子里一样：人民币浮在上面，新币沉在下面
             VesselRow("国内账户", Money.format(snapshot.cnyCashCents, Currency.CNY), "≈ " + Money.format(snapshot.cnyCashInMainCents, MainCurrency), onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Cny.last())
-            if (spendable != null && payday != null) {
-                val days = ChronoUnit.DAYS.between(LocalDate.now(), payday)
-                VesselRow("发薪前还能花", Money.format(spendable, MainCurrency), when { days <= 0 -> "今天发薪"; days == 1L -> "明天发薪"; else -> "还有 $days 天发薪" }, onOpenRecurring, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
+            if (forecast != null && payday != null) {
+                val safe = forecast.safeCents
+                val low = forecast.lowest
+                VesselRow(
+                    "现在能放心花", Money.format(safe, MainCurrency),
+                    when {
+                        low == null -> "接下来 ${forecast.until.monthValue}/${forecast.until.dayOfMonth} 前只进不出"
+                        safe < 0 -> "${low.date.monthValue}/${low.date.dayOfMonth} " + forecastLabel(low) + " 时会不够"
+                        else -> "到 ${low.date.monthValue}/${low.date.dayOfMonth} " + forecastLabel(low) + " 前"
+                    },
+                    onOpenRecurring, valueColor = if (safe < 0) Palette.Rose else Palette.Ink, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last(),
+                )
             } else {
                 VesselRow("新币账户", Money.format(snapshot.mainCashCents, MainCurrency), "设好工资，杯子就按工资算满", onOpenAccounts, dot = com.personal.carnet.ui.glass.Liquid.Sgd.last())
             }
@@ -324,15 +332,15 @@ private fun NetWorthCard(snapshot: Snapshot, onOpenAccounts: () -> Unit, onOpenL
                     },
                     size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 10.dp),
                 )
-                val parts = plan.spendableParts
-                if (parts.isNotEmpty()) {
+                if (forecast != null && payday != null) {
                     Label(
-                        "发薪前还能花 = " + Money.format(parts.first().second) + "（能用的账户）" +
-                            parts.drop(1).joinToString("") { (name, cents) -> " − $name ${Money.format(cents)}" },
+                        "现在能放心花：能用的账户现在有 " + Money.format(forecast.start) + "，把接下来的工资、房租、还卡、她转的钱按日子排开，" +
+                            (forecast.lowest?.let { "钱最少的时候（${it.date.monthValue}/${it.date.dayOfMonth} " + forecastLabel(it) + " 后）剩 " + Money.format(it.balance) + "。现在多花一块，那时就少一块" }
+                                ?: "一路只进不出，现在的都能花"),
                         size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                Label("下层蓝的是新币，上层粉的是人民币；液面越低，离发薪越近、能花的越少。", size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 4.dp))
+                Label("下层蓝的是新币，上层粉的是人民币；液面越低，能放心花的越少。", size = 12.sp, weight = FontWeight.Medium, color = Palette.Ink, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }

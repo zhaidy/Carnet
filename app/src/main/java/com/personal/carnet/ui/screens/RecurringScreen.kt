@@ -77,11 +77,10 @@ fun RecurringScreen(
             Column(Modifier.fillMaxWidth().holo(RoundedCornerShape(28.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Label("每月固定支出 · 你的那份", weight = FontWeight.SemiBold)
                 Strong(Money.format(plan.monthlyFixedCents, MainCurrency), size = 30.sp)
-                val spendable = plan.spendableCents
-                val payday = plan.payday
+                val safe = plan.payday?.let { snapshot.forecast?.safeCents }
                 Label(
-                    if (spendable != null && payday != null) "${payday.monthValue}/${payday.dayOfMonth} 发薪前还能花 " + Money.format(spendable, MainCurrency) + "（已扣掉这之前的房租、还卡和固定支出）"
-                    else "加上工资，就能算出发薪前还能花多少",
+                    if (safe != null) "现在能放心花 " + Money.format(safe, MainCurrency) + "（已留够接下来的房租、还卡和固定支出）"
+                    else "加上工资，就能算出现在能放心花多少",
                     size = 12.sp, weight = FontWeight.Medium,
                 )
             }

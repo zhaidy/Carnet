@@ -27,6 +27,12 @@ data class Forecast(val start: Long, val items: List<ForecastItem>, val until: L
     /** 钱最少的时候：余额最低的那一项；比现在还多（只进不出）是 null */
     val lowest: ForecastItem? get() = items.minByOrNull { it.balance }?.takeIf { it.balance < start }
 
+    /**
+     * 现在能放心花：现在多花的每一块，都会让后面每一步剩的少一块，
+     * 所以能花的就是钱最少的时候剩的（负的是那时已经差这么多）；一路只进不出就是现在能用的
+     */
+    val safeCents: Long get() = lowest?.balance ?: start
+
     /** 不够之后，哪一项过后又够了 */
     val recovered: ForecastItem? get() {
         val short = firstShort ?: return null

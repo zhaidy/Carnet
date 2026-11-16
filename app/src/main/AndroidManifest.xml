@@ -30,7 +30,7 @@
             </intent-filter>
         </activity>
 
-        <!-- 桌面小组件：发薪前还能花、这个月花了、谁补谁、接下来的固定收支；能拖大小 -->
+        <!-- 桌面小组件：现在能放心花、这个月花了、谁补谁、接下来的固定收支；能拖大小 -->
         <receiver
             android:name=".widget.CarnetWidgetReceiver"
             android:exported="true"

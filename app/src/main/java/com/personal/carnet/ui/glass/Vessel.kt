@@ -38,9 +38,9 @@ fun salaryMain(snapshot: com.personal.carnet.domain.Snapshot): Long =
     snapshot.rules.filter { it.active && com.personal.carnet.domain.Cashflow.isSalary(it) }
         .sumOf { snapshot.rate.convert(it.amountCents, it.currency, com.personal.carnet.domain.MainCurrency) }
 
-/** 杯子有多满：发薪前还能花 ÷ 一个月工资（0 到 1）；没设工资时按六成算。背景的冷暖也跟着它 */
+/** 杯子有多满：现在能放心花 ÷ 一个月工资（0 到 1）；没设工资时按六成算。背景的冷暖也跟着它 */
 fun cupLevel(snapshot: com.personal.carnet.domain.Snapshot): Float {
-    val spendable = snapshot.plan.spendableCents
+    val spendable = snapshot.plan.payday?.let { snapshot.forecast?.safeCents }
     val salary = salaryMain(snapshot)
     return (if (spendable != null && salary > 0) spendable.toFloat() / salary else 0.6f).coerceIn(0f, 1f)
 }
@@ -53,7 +53,7 @@ object Liquid {
 
 /**
  * 杯子里的钱：画在一块玻璃的下半截。
- * - [level]：液面高度占整块的比例（发薪前还能花 ÷ 工资），越接近发薪越低
+ * - [level]：液面高度占整块的比例（现在能放心花 ÷ 工资），能放心花的越少越低
  * - [split]：下层新币占多少，剩下的是人民币
  * 液面跟着手机倾斜，平时自己轻轻晃；液面上一道弯月高光，几颗气泡慢慢往上冒
  */

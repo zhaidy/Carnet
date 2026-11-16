@@ -9,7 +9,7 @@ import java.time.LocalDate
 
 /** 小组件上显示的东西，全是排好的文字，方便比较有没有变（没变就不刷新） */
 data class WidgetData(
-    /** 大字：发薪前还能花；没设工资时显示净资产 */
+    /** 大字：现在能放心花；没设工资时显示净资产 */
     val headline: String,
     val headlineLabel: String,
     val monthSpent: String,
@@ -21,10 +21,9 @@ data class WidgetData(
     companion object {
         fun from(s: Snapshot, today: LocalDate = LocalDate.now()): WidgetData {
             val plan = s.plan
-            val spendable = plan.spendableCents
-            val payday = plan.payday
-            val (headline, label) = if (spendable != null && payday != null) {
-                Money.format(spendable, MainCurrency) to "${payday.monthValue}/${payday.dayOfMonth} 发薪前还能花"
+            val safe = plan.payday?.let { s.forecast?.safeCents }
+            val (headline, label) = if (safe != null) {
+                Money.format(safe, MainCurrency) to "现在能放心花"
             } else {
                 Money.format(s.netWorthCents, MainCurrency) to "净资产"
             }

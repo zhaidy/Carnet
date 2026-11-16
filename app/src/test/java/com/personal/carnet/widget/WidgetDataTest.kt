@@ -8,6 +8,8 @@ import com.personal.carnet.data.RecurringRule
 import com.personal.carnet.data.RuleKind
 import com.personal.carnet.domain.Books
 import com.personal.carnet.domain.Currency
+import com.personal.carnet.domain.Forecast
+import com.personal.carnet.domain.ForecastItem
 import com.personal.carnet.domain.FxRate
 import com.personal.carnet.domain.Occurrence
 import com.personal.carnet.domain.Plan
@@ -27,11 +29,11 @@ class WidgetDataTest {
         cycle = Cycle.MONTHLY, day = 20, accountId = 1, lastDoneEpochDay = today.toEpochDay(),
     )
 
-    private fun snapshot(ledgers: List<Ledger>, plan: Plan) =
-        Books.snapshot(listOf(bank), ledgers, emptyList(), emptyList(), FxRate(5.3), 0).copy(plan = plan)
+    private fun snapshot(ledgers: List<Ledger>, plan: Plan, forecast: Forecast? = null) =
+        Books.snapshot(listOf(bank), ledgers, emptyList(), emptyList(), FxRate(5.3), 0).copy(plan = plan, forecast = forecast)
 
     @Test
-    fun 有工资时显示发薪前还能花() {
+    fun 有工资时显示现在能放心花() {
         val plan = Plan(
             pending = emptyList(),
             upcoming = listOf(Occurrence(rent, LocalDate.of(2026, 11, 20), 180000, Currency.SGD, estimate = false)),
@@ -39,9 +41,11 @@ class WidgetDataTest {
             spendableCents = 320000,
             monthlyFixedCents = 180000,
         )
-        val d = WidgetData.from(snapshot(listOf(personal, us), plan), today)
+        // 11/20 房租后最少，剩 3200
+        val forecast = Forecast(500000, listOf(ForecastItem(LocalDate.of(2026, 11, 20), ForecastItem.Kind.FIXED, "房租", -180000, 320000)), LocalDate.of(2026, 12, 11))
+        val d = WidgetData.from(snapshot(listOf(personal, us), plan, forecast), today)
         assertEquals("S$3,200.00", d.headline)
-        assertEquals("11/26 发薪前还能花", d.headlineLabel)
+        assertEquals("现在能放心花", d.headlineLabel)
         assertEquals("和她两清了", d.shared)
         assertEquals(listOf(Triple("11/20", "房租", "-S$1,800.00")), d.upcoming)
     }
